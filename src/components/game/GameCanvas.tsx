@@ -3,9 +3,9 @@ import { Canvas, useFrame } from '@react-three/fiber';
 import { Environment, Lightformer, SoftShadows, Sparkles, Stars } from '@react-three/drei';
 import { Physics } from '@react-three/rapier';
 import * as THREE from 'three';
-import { getSummitPhaseForAltitude } from '../../levels/summitMap';
+import { getSummitStageByCamps } from '../../levels/summitMap';
 import { getLevelById, livePhysics, useGameStore } from '../../store/useGameStore';
-import { LevelData } from '../../types/level';
+import { LevelData, SkyPreset } from '../../types/level';
 import { GhostOrb } from './GhostOrb';
 import { MonkeyCamera } from './MonkeyCamera';
 import { OrbSpeedTrail } from './OrbSpeedTrail';
@@ -16,7 +16,7 @@ import { SummitMultiplayer } from './SummitMultiplayer';
 import { TiltController } from './TiltController';
 
 const SKY_THEMES: Record<
-  LevelData['skyPreset'],
+  SkyPreset,
   {
     bgTop: string;
     bgBottom: string;
@@ -77,6 +77,87 @@ const SKY_THEMES: Record<
     sunColor: '#fde047',
     sparkleColor: '#fde047',
     fogColor: '#1c1917',
+  },
+  // --- Summit stage skies ---
+  forest: {
+    bgTop: '#14532d',
+    bgBottom: '#bbf7d0',
+    ringColor: '#84cc16',
+    islandTop: '#4d7c0f',
+    islandRock: '#422006',
+    sunColor: '#fef9c3',
+    sparkleColor: '#d9f99d',
+    fogColor: '#3f6212',
+  },
+  cave: {
+    bgTop: '#0b0618',
+    bgBottom: '#3b0764',
+    ringColor: '#d946ef',
+    islandTop: '#7c3aed',
+    islandRock: '#1e1b4b',
+    sunColor: '#e9d5ff',
+    sparkleColor: '#f0abfc',
+    fogColor: '#2e1065',
+  },
+  desert: {
+    bgTop: '#c2410c',
+    bgBottom: '#fde68a',
+    ringColor: '#f59e0b',
+    islandTop: '#d97706',
+    islandRock: '#78350f',
+    sunColor: '#fff7ed',
+    sparkleColor: '#fed7aa',
+    fogColor: '#fdba74',
+  },
+  glacier: {
+    bgTop: '#0c4a6e',
+    bgBottom: '#e0f2fe',
+    ringColor: '#7dd3fc',
+    islandTop: '#e0f2fe',
+    islandRock: '#475569',
+    sunColor: '#f0f9ff',
+    sparkleColor: '#ffffff',
+    fogColor: '#bae6fd',
+  },
+  gale: {
+    bgTop: '#1e3a8a',
+    bgBottom: '#cbd5e1',
+    ringColor: '#93c5fd',
+    islandTop: '#64748b',
+    islandRock: '#1e293b',
+    sunColor: '#e0e7ff',
+    sparkleColor: '#e2e8f0',
+    fogColor: '#94a3b8',
+  },
+  volcano: {
+    bgTop: '#1c0a05',
+    bgBottom: '#9a3412',
+    ringColor: '#f97316',
+    islandTop: '#292524',
+    islandRock: '#0c0a09',
+    sunColor: '#fdba74',
+    sparkleColor: '#fb923c',
+    fogColor: '#431407',
+  },
+  storm: {
+    bgTop: '#0f172a',
+    bgBottom: '#475569',
+    ringColor: '#67e8f9',
+    islandTop: '#334155',
+    islandRock: '#0f172a',
+    sunColor: '#cffafe',
+    sparkleColor: '#a5f3fc',
+    fogColor: '#1e293b',
+  },
+  summit: {
+    bgTop: '#1e1b4b',
+    bgBottom: '#fcd34d',
+    ringColor: '#fbbf24',
+    islandTop: '#f8fafc',
+    islandRock: '#a16207',
+    sunColor: '#fff7d6',
+    sparkleColor: '#fde68a',
+    fogColor: '#fde68a',
   },
 };
 
@@ -206,18 +287,10 @@ export function GameCanvas() {
     [currentLevelId]
   );
 
-  const [summitSkyPreset, setSummitSkyPreset] = useState<LevelData['skyPreset']>('day');
-
-  useEffect(() => {
-    if (!level.isSummitMode) return;
-    const syncPhaseSky = () => {
-      const phase = getSummitPhaseForAltitude(livePhysics.currentAltitudeM);
-      setSummitSkyPreset((prev) => (prev === phase.skyPreset ? prev : phase.skyPreset));
-    };
-    syncPhaseSky();
-    const id = window.setInterval(syncPhaseSky, 300);
-    return () => window.clearInterval(id);
-  }, [level.isSummitMode, runAttemptId]);
+  // Summit sky follows the stage you are in: Base Camps passed in order (never raw altitude,
+  // so falling back down a stage keeps its sky and bouncing high can't flash the next one).
+  const summitCampsCrossed = useGameStore((s) => s.crossedCheckpoints.length);
+  const summitSkyPreset = getSummitStageByCamps(summitCampsCrossed).skyPreset;
 
   const activePreset = level.isSummitMode ? summitSkyPreset : level.skyPreset;
   const sky = SKY_THEMES[activePreset] || SKY_THEMES.day;
@@ -325,6 +398,7 @@ export function GameCanvas() {
             <PlayerOrb
               spawnPosition={level.spawnPosition}
               killPlaneY={level.killPlaneY}
+              respawnFallDepth={level.respawnFallDepth}
             />
             <StageBuilder level={level} />
           </Physics>

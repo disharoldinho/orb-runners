@@ -118,9 +118,11 @@ export function OrbShell({ style, primaryColor }: OrbShellProps) {
 interface PlayerOrbProps {
   spawnPosition: [number, number, number];
   killPlaneY: number;
+  /** Also fall out when this far below the current respawn point (Summit). */
+  respawnFallDepth?: number;
 }
 
-export function PlayerOrb({ spawnPosition, killPlaneY }: PlayerOrbProps) {
+export function PlayerOrb({ spawnPosition, killPlaneY, respawnFallDepth }: PlayerOrbProps) {
   const bodyRef = useRef<RapierRigidBody>(null);
   const characterGroupRef = useRef<THREE.Group>(null);
   const shadowGroupRef = useRef<THREE.Group>(null);
@@ -149,6 +151,7 @@ export function PlayerOrb({ spawnPosition, killPlaneY }: PlayerOrbProps) {
     rb.setRotation({ x: 0, y: 0, z: 0, w: 1 }, true);
     charYaw.current = (livePhysics.cameraYaw ?? 0) + Math.PI;
   }, [runAttemptId, spawnPosition]);
+
 
   // Trackmania Standing Checkpoint Respawn (C / Backspace / Gamepad B)
   useEffect(() => {
@@ -210,7 +213,11 @@ export function PlayerOrb({ spawnPosition, killPlaneY }: PlayerOrbProps) {
       livePhysics.peakAltitudeM = altM;
     }
 
-    if (playPhase === 'playing' && pos.y < killPlaneY) {
+    const fallLimitY =
+      respawnFallDepth !== undefined
+        ? Math.max(killPlaneY, activeSpawnPosition[1] - respawnFallDepth)
+        : killPlaneY;
+    if (playPhase === 'playing' && pos.y < fallLimitY) {
       triggerFallout();
     }
 

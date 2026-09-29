@@ -1,5 +1,6 @@
 import { useMemo } from 'react';
 import { RigidBody } from '@react-three/rapier';
+import type { CoefficientCombineRule } from '@dimforge/rapier3d-compat';
 import * as THREE from 'three';
 import { BlockTheme, StaticBlockDef } from '../../types/level';
 
@@ -63,7 +64,52 @@ export const THEME_PALETTES: Record<
     rail: '#ffffff',
     glow: '#7dd3fc',
   },
+  forest: {
+    c1: '#4d7c0f',
+    c2: '#3f6212',
+    trim: '#a16207',
+    rail: '#78350f',
+    glow: '#bef264',
+  },
+  crystal: {
+    c1: '#6d28d9',
+    c2: '#4c1d95',
+    trim: '#e879f9',
+    rail: '#c4b5fd',
+    glow: '#f0abfc',
+  },
+  sand: {
+    c1: '#e7b872',
+    c2: '#d19a4c',
+    trim: '#b45309',
+    rail: '#9a3412',
+    glow: '#fcd34d',
+  },
+  lava: {
+    c1: '#292524',
+    c2: '#1c1917',
+    trim: '#f97316',
+    rail: '#57534e',
+    glow: '#fb923c',
+  },
+  storm: {
+    c1: '#475569',
+    c2: '#334155',
+    trim: '#67e8f9',
+    rail: '#e2e8f0',
+    glow: '#a5f3fc',
+  },
+  cloud: {
+    c1: '#f8fafc',
+    c2: '#e2e8f0',
+    trim: '#fbbf24',
+    rail: '#fde68a',
+    glow: '#fef3c7',
+  },
 };
+
+/** Rapier CoefficientCombineRule.Min: an ice surface stays slippery whatever the orb's own friction. */
+const COMBINE_MIN = 1 as CoefficientCombineRule;
 
 const textureCache = new Map<string, THREE.CanvasTexture>();
 let sharedBumpMap: THREE.CanvasTexture | null = null;
@@ -110,6 +156,17 @@ export function getCheckerTexture(theme: BlockTheme, repeatX: number, repeatZ: n
   const key = `${theme}_${Math.round(repeatX * 2)}_${Math.round(repeatZ * 2)}_v2`;
   const existing = textureCache.get(key);
   if (existing) return existing;
+
+  // One canvas (and one GPU upload) per theme; per-size textures are clones sharing its source.
+  const baseKey = `${theme}_base_v2`;
+  const base = textureCache.get(baseKey);
+  if (base) {
+    const clone = base.clone();
+    clone.repeat.set(Math.max(1, repeatX / 2), Math.max(1, repeatZ / 2));
+    clone.needsUpdate = true;
+    textureCache.set(key, clone);
+    return clone;
+  }
 
   const palette = THEME_PALETTES[theme] || THEME_PALETTES.meadow;
   const canvas = document.createElement('canvas');
@@ -163,8 +220,8 @@ export function getCheckerTexture(theme: BlockTheme, repeatX: number, repeatZ: n
   tex.wrapT = THREE.RepeatWrapping;
   tex.repeat.set(Math.max(1, repeatX / 2), Math.max(1, repeatZ / 2));
   tex.anisotropy = 8;
-  textureCache.set(key, tex);
-  return tex;
+  textureCache.set(baseKey, tex);
+  return getCheckerTexture(theme, repeatX, repeatZ);
 }
 
 export function StaticBlock({
@@ -174,6 +231,8 @@ export function StaticBlock({
   theme = 'meadow',
   rails = 'none',
   railHeight = 0.45,
+  surface = 'normal',
+  decorative = false,
 }: StaticBlockDef) {
   const [sx, sy, sz] = size;
   const palette = THEME_PALETTES[theme] || THEME_PALETTES.meadow;
@@ -185,14 +244,9 @@ export function StaticBlock({
   const showRightRail = rails === 'both' || rails === 'right';
   const railThickness = 0.24;
 
-  return (
-    <RigidBody
-      type="fixed"
-      position={position}
-      rotation={rotation}
-      friction={theme === 'ice' ? 0.15 : 0.95}
-      restitution={0.2}
-    >
+  const isIce = surface === 'ice';
+  const content = (
+    <>
       {/* Main Beveled PBR Floor Block */}
       <mesh receiveShadow castShadow>
         <boxGeometry args={[sx, sy, sz]} />
@@ -200,7 +254,7 @@ export function StaticBlock({
           map={checkerTex}
           bumpMap={bumpTex}
           bumpScale={0.016}
-          roughness={theme === 'ice' ? 0.08 : theme === 'cyber' ? 0.24 : 0.32}
+          roughness={theme === 'ice' || isIce ? 0.08 : theme === 'cyber' ? 0.24 : 0.32}
           metalness={theme === 'gold' ? 0.65 : theme === 'cyber' ? 0.35 : 0.15}
         />
       </mesh>
@@ -278,6 +332,27 @@ export function StaticBlock({
           </mesh>
         </group>
       )}
+    </>
+  );
+
+  if (decorative) {
+    return (
+      <group position={position} rotation={rotation}>
+        {content}
+      </group>
+    );
+  }
+
+  return (
+    <RigidBody
+      type="fixed"
+      position={position}
+      rotation={rotation}
+      friction={isIce ? 0.02 : theme === 'ice' ? 0.15 : 0.95}
+      frictionCombineRule={isIce ? COMBINE_MIN : undefined}
+      restitution={0.2}
+    >
+      {content}
     </RigidBody>
   );
 }
