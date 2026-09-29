@@ -1,6 +1,6 @@
 import { useEffect, useRef } from 'react';
 import { useFrame } from '@react-three/fiber';
-import { BallCollider, RapierRigidBody, RigidBody } from '@react-three/rapier';
+import { BallCollider, RapierRigidBody, RigidBody, useRapier } from '@react-three/rapier';
 import * as THREE from 'three';
 import { livePhysics, useGameStore } from '../../store/useGameStore';
 import { OrbShellStyle } from '../../types/avatar';
@@ -152,6 +152,16 @@ export function PlayerOrb({ spawnPosition, killPlaneY, respawnFallDepth }: Playe
     charYaw.current = (livePhysics.cameraYaw ?? 0) + Math.PI;
   }, [runAttemptId, spawnPosition]);
 
+  // Spawn guard: on slow devices the (big) level can finish mounting right as the countdown
+  // ends, and the first physics frame then drops the orb before the floor colliders exist.
+  // Hold the orb at spawn until a ray finds the floor under it (max ~4 s, then let go).
+  const { world, rapier } = useRapier();
+  const floorReady = useRef(false);
+  const floorWaitS = useRef(0);
+  useEffect(() => {
+    floorReady.current = false;
+    floorWaitS.current = 0;
+  }, [runAttemptId, spawnPosition]);
 
   // Trackmania Standing Checkpoint Respawn (C / Backspace / Gamepad B)
   useEffect(() => {
@@ -185,7 +195,17 @@ export function PlayerOrb({ spawnPosition, killPlaneY, respawnFallDepth }: Playe
     const rb = bodyRef.current;
     if (!rb) return;
 
-    if (playPhase === 'countdown') {
+    if (!floorReady.current) {
+      floorWaitS.current += dt;
+      const ray = new rapier.Ray(
+        { x: spawnPosition[0], y: spawnPosition[1], z: spawnPosition[2] },
+        { x: 0, y: -1, z: 0 }
+      );
+      const hit = world.castRay(ray, 4, true, undefined, undefined, undefined, rb);
+      if (hit || floorWaitS.current > 4) floorReady.current = true;
+    }
+
+    if (playPhase === 'countdown' || (!floorReady.current && playPhase === 'playing')) {
       rb.setTranslation(
         { x: spawnPosition[0], y: spawnPosition[1], z: spawnPosition[2] },
         true
