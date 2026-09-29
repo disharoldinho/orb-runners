@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { Crosshair, Flag, RotateCcw, Smartphone, X } from 'lucide-react';
-import { useGameStore } from '../../store/useGameStore';
+import { Crosshair, Flag, Home, LogOut, RotateCcw, Smartphone, X } from 'lucide-react';
+import { getLevelById, useGameStore } from '../../store/useGameStore';
 import {
   disableGyro,
   enableGyro,
@@ -102,11 +102,15 @@ export function MobileControls() {
   const respawnAtCheckpoint = useGameStore((s) => s.respawnAtCheckpoint);
   const crossedCheckpoints = useGameStore((s) => s.crossedCheckpoints.length);
   const playPhase = useGameStore((s) => s.playPhase);
+  const exitToMenu = useGameStore((s) => s.exitToMenu);
+  const currentLevelId = useGameStore((s) => s.currentLevelId);
+  const isSummit = Boolean(getLevelById(currentLevelId).isSummitMode);
 
   const [gyroOn, setGyroOn] = useState(false);
   const [toast, setToast] = useState<string | null>(null);
   const [isPortrait, setIsPortrait] = useState(false);
   const [hideRotateHint, setHideRotateHint] = useState(false);
+  const [exitArmed, setExitArmed] = useState(false);
 
   useEffect(() => {
     const mq = window.matchMedia('(orientation: portrait)');
@@ -148,6 +152,27 @@ export function MobileControls() {
     }
   };
 
+  // Two-tap confirm so a stray thumb doesn't end the run: first tap arms, second leaves.
+  useEffect(() => {
+    if (!exitArmed) return;
+    const id = window.setTimeout(() => setExitArmed(false), 3000);
+    return () => window.clearTimeout(id);
+  }, [exitArmed]);
+
+  const onExitTap = () => {
+    if (!exitArmed) {
+      setExitArmed(true);
+      setToast(
+        isSummit
+          ? 'Tap Leave again to exit the Summit lobby'
+          : 'Tap Menu again to return to the main menu',
+      );
+      return;
+    }
+    setExitArmed(false);
+    exitToMenu();
+  };
+
   const recalibrate = () => {
     recalibrateGyro();
     setToast('Level recalibrated');
@@ -160,14 +185,29 @@ export function MobileControls() {
       <VirtualJoystick />
 
       <div className="mobile-action-cluster">
-        {gyroSupported() && (
-          <div className="mobile-gyro-row">
-            {gyroOn && (
-              <button className="mobile-btn small" onClick={recalibrate} aria-label="Recalibrate tilt">
-                <Crosshair size={18} />
-                <span>Level</span>
-              </button>
-            )}
+        <div className="mobile-gyro-row">
+          <button
+            className={`mobile-btn small exit ${exitArmed ? 'armed' : ''}`}
+            onClick={onExitTap}
+            aria-label={
+              isSummit ? 'Leave Summit lobby and return to main menu' : 'Return to main menu'
+            }
+            data-testid="mobile-exit"
+          >
+            {isSummit ? <LogOut size={18} /> : <Home size={18} />}
+            <span>{exitArmed ? (isSummit ? 'Leave?' : 'Menu?') : isSummit ? 'Leave' : 'Menu'}</span>
+          </button>
+          {gyroSupported() && gyroOn && (
+            <button
+              className="mobile-btn small"
+              onClick={recalibrate}
+              aria-label="Recalibrate tilt"
+            >
+              <Crosshair size={18} />
+              <span>Level</span>
+            </button>
+          )}
+          {gyroSupported() && (
             <button
               className={`mobile-btn small ${gyroOn ? 'on' : ''}`}
               onClick={toggleGyro}
@@ -177,8 +217,8 @@ export function MobileControls() {
               <Smartphone size={18} />
               <span>Tilt {gyroOn ? 'On' : 'Off'}</span>
             </button>
-          </div>
-        )}
+          )}
+        </div>
         <div className="mobile-main-row">
           <button className="mobile-btn" onClick={startRun} aria-label="Reset stage">
             <RotateCcw size={22} />

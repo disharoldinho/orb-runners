@@ -2016,6 +2016,12 @@ button:active:not(:disabled) {
   font-size: 0.78rem;
 }
 
+.mobile-btn.exit.armed {
+  border-color: rgba(248, 113, 113, 0.9);
+  background: rgba(127, 29, 29, 0.82);
+  color: #fecaca;
+}
+
 .mobile-btn.on {
   border-color: rgba(56, 189, 248, 0.8);
   color: #7dd3fc;
