@@ -211,7 +211,7 @@ export function StaticBlock({
         <meshStandardMaterial
           color={palette.trim}
           emissive={palette.glow}
-          emissiveIntensity={0.5}
+          emissiveIntensity={1.1}
           roughness={0.2}
           metalness={0.5}
         />
@@ -255,7 +255,7 @@ export function StaticBlock({
             <meshStandardMaterial
               color={palette.glow}
               emissive={palette.glow}
-              emissiveIntensity={0.8}
+              emissiveIntensity={1.8}
             />
           </mesh>
         </group>
@@ -273,7 +273,7 @@ export function StaticBlock({
             <meshStandardMaterial
               color={palette.glow}
               emissive={palette.glow}
-              emissiveIntensity={0.8}
+              emissiveIntensity={1.8}
             />
           </mesh>
         </group>
