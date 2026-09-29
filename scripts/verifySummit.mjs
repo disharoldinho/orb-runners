@@ -115,6 +115,13 @@ console.log(
   `2. clearance: min headroom between overlapping road pieces = ${minClear.toFixed(2)}m (${minPair}); need >= 7m`,
 );
 
+// --- 2b. no launch boosts --------------------------------------------------
+// Boost pads on/near climbs turn ramp crests into launch ramps (a stacked pair measured
+// 33 m/s and flew over a spring pad), so the Summit must not use them at all.
+const boosts = L.boostPads ?? [];
+if (boosts.length) fail(`${boosts.length} boost pads present; the Summit route must not use boosts`);
+console.log(`2b. boost pads: ${boosts.length} (climbs are all <= ${m.MAX_RAMP_SLOPE_DEG ?? 11.31}°, rollable from rest)`);
+
 // --- 3. jump pads -----------------------------------------------------------
 const G = 20.5,
   DAMP = 0.34,

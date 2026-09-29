@@ -375,19 +375,9 @@ class RouteBuilder {
       railHeight: o.railH ?? RAIL,
       surface: o.surface,
     });
-    const boosted = o.boost !== false && run >= 12;
-    if (boosted) {
-      for (const frac of [0.14, 0.56]) {
-        this.boostPads.push({
-          id: this.id('bp'),
-          position: this.at(run * frac, 0, r2(F0 + rise * frac + 0.42)),
-          rotation: rot(this.h, pitch),
-          size: [Math.min(3.8, W - 1.6), 5.0],
-          force: 20,
-          color: this.accent,
-        });
-      }
-    }
+    // No boost pads on Summit climbs: every ramp is 11.3° (rollable from standstill) and
+    // boosts stacked on a ramp turned the crest into a launch ramp that skipped spring pads.
+    const boosted = false;
     this.record('ramp', id, center, size, rotation, slopeDeg, boosted);
     this.wpAlong(run, (a) => F0 + (rise * a) / run);
     this.F = r2(F0 + rise);
@@ -1166,10 +1156,10 @@ function buildSummitLevel() {
     isSummitMode: true,
     summitTargetAltitudeM: SUMMIT_TARGET_ALTITUDE_M,
     medalTimesMs: {
-      author: 240000,
-      gold: 300000,
-      silver: 420000,
-      bronze: 600000,
+      author: 330000,
+      gold: 400000,
+      silver: 520000,
+      bronze: 700000,
     },
     checkpoints: b.checkpoints,
     blocks: b.blocks,
