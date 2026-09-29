@@ -217,6 +217,16 @@ export function TiltController() {
     world.gravity.x = worldGx;
     world.gravity.y = localGy;
     world.gravity.z = worldGz;
+
+    // Rapier puts a resting body to sleep after ~2s, and changing world.gravity
+    // does not wake it, so a player who waits after "GO" (common on touch, where
+    // you look before you steer) would tilt the board with the orb frozen.
+    // Wake sleeping dynamic bodies only while the board is actually tilted.
+    if (playPhase === 'playing' && Math.abs(pitch) + Math.abs(roll) > 0.002) {
+      world.forEachRigidBody((body) => {
+        if (body.isDynamic() && body.isSleeping()) body.wakeUp();
+      });
+    }
   });
 
   return null;
