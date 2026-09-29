@@ -126,7 +126,10 @@ function HorizonEnvironment({ preset }: { preset: LevelData['skyPreset'] }) {
       new THREE.Euler(pitch * 0.42, 0, -roll * 0.36, 'YXZ')
     );
     const targetQ = qYaw.multiply(qTilt).multiply(qYawInv);
-    horizonRef.current.quaternion.slerp(targetQ, 0.15);
+    // Frame-rate independent follow: equivalent to the previous fixed 0.15/frame
+    // slerp at 60 fps (1 - 0.85^60 per second => rate = -60 * ln(0.85) ~= 9.75/s).
+    const dt = Math.min(delta, 0.05);
+    horizonRef.current.quaternion.slerp(targetQ, 1 - Math.exp(-9.75 * dt));
   });
 
   return (
