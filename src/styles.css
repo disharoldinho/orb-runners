@@ -2183,6 +2183,12 @@ button:active:not(:disabled) {
     justify-content: center;
   }
 
+  .goal-modal-backdrop {
+    z-index: 40;
+    padding: max(8px, env(safe-area-inset-top)) max(8px, env(safe-area-inset-right))
+      max(8px, env(safe-area-inset-bottom)) max(8px, env(safe-area-inset-left));
+  }
+
   /* Main menu */
   .main-menu-screen {
     padding: max(12px, env(safe-area-inset-top)) max(12px, env(safe-area-inset-right))
@@ -2283,5 +2289,29 @@ button:active:not(:disabled) {
   .summit-tab-btn,
   .btn-summit-launch {
     min-height: 44px;
+  }
+}
+
+/* Short landscape phones: compact the goal card so the buttons stay on screen */
+@media (max-height: 500px) {
+  .goal-modal-card {
+    padding: 14px 18px;
+    max-width: 560px;
+  }
+  .goal-modal-card h2 {
+    margin: 6px 0;
+    font-size: 1.4rem;
+  }
+  .goal-medal-showcase {
+    padding: 8px 12px;
+    margin-bottom: 8px;
+  }
+  .goal-medal-showcase svg {
+    width: 26px;
+    height: 26px;
+  }
+  .goal-stats-box {
+    padding: 8px 12px;
+    margin-bottom: 10px;
   }
 }
