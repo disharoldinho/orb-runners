@@ -1,6 +1,6 @@
 import { useMemo, useRef } from 'react';
 import { useFrame } from '@react-three/fiber';
-import { RapierRigidBody, RigidBody } from '@react-three/rapier';
+import { RapierRigidBody, RigidBody, useBeforePhysicsStep } from '@react-three/rapier';
 import * as THREE from 'three';
 import { MovingPlatformDef } from '../../types/level';
 import { getCheckerTexture, getTileBumpMap } from './StaticBlock';
@@ -20,11 +20,16 @@ export function MovingPlatform({
   const checkerTex = useMemo(() => getCheckerTexture(theme, sx, sz), [theme, sx, sz]);
   const bumpTex = useMemo(() => getTileBumpMap(sx, sz), [sx, sz]);
 
-  useFrame((state) => {
+  // Drive the kinematic body once per physics sub-step (not once per rendered frame):
+  // at low frame rates a per-frame target makes the platform cover a whole frame of travel
+  // in a single 1/120 s step, which kicks a riding orb into the air.
+  const physicsTime = useRef(0);
+  useBeforePhysicsStep((world) => {
     const rb = bodyRef.current;
     if (!rb) return;
+    physicsTime.current += world.timestep;
 
-    const t = state.clock.elapsedTime * speed + phaseOffset;
+    const t = physicsTime.current * speed + phaseOffset;
     const factor = (1 - Math.cos(t)) * 0.5;
 
     const x = THREE.MathUtils.lerp(start[0], end[0], factor);
@@ -32,7 +37,9 @@ export function MovingPlatform({
     const z = THREE.MathUtils.lerp(start[2], end[2], factor);
 
     rb.setNextKinematicTranslation({ x, y, z });
+  });
 
+  useFrame((state) => {
     if (thrusterRingRef.current) {
       const pulse = 0.92 + Math.sin(state.clock.elapsedTime * 10) * 0.08;
       thrusterRingRef.current.scale.set(pulse, pulse, 1);
