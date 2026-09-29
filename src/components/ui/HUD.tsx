@@ -19,7 +19,7 @@ import {
   Globe,
 } from 'lucide-react';
 import { MAPS } from '../../levels/maps';
-import { getSummitPhaseForAltitude } from '../../levels/summitMap';
+import { SUMMIT_PHASES, getSummitStageByCamps } from '../../levels/summitMap';
 import { getLevelById, livePhysics, useGameStore } from '../../store/useGameStore';
 import { MAX_TILT_RAD } from '../game/TiltController';
 import { soundFX } from './SoundManager';
@@ -94,6 +94,7 @@ export function HUD() {
   const summitStageSpanRef = useRef<HTMLSpanElement>(null);
   const summitPhaseTitleRef = useRef<HTMLHeadingElement>(null);
   const summitPhaseSubRef = useRef<HTMLParagraphElement>(null);
+  const summitChallengeRef = useRef<HTMLParagraphElement>(null);
   const thermometerFillRef = useRef<HTMLDivElement>(null);
   const thermometerYouPinRef = useRef<HTMLDivElement>(null);
 
@@ -112,6 +113,17 @@ export function HUD() {
     window.addEventListener('keydown', onKeyDown);
     return () => window.removeEventListener('keydown', onKeyDown);
   }, [toggleGhost, isSummit, triggerEmote]);
+
+  // Warning toasts (missed / out-of-order gate) fade out on their own.
+  useEffect(() => {
+    if (!checkpointWarningMessage) return;
+    const t = window.setTimeout(() => {
+      if (useGameStore.getState().checkpointWarningMessage === checkpointWarningMessage) {
+        useGameStore.setState({ checkpointWarningMessage: null });
+      }
+    }, 3200);
+    return () => window.clearTimeout(t);
+  }, [checkpointWarningMessage]);
 
   // Periodically sync rounded local altitude for leaderboard sorting in Summit Mode
   useEffect(() => {
@@ -200,13 +212,18 @@ export function HUD() {
       if (isSummit) {
         const alt = Math.max(0, livePhysics.currentAltitudeM);
         const pct = Math.min(100, Math.max(0, (alt / targetAltM) * 100));
-        const currentStageNum = Math.min(25, Math.max(1, Math.floor(alt / 10) + 1));
-        const activePhase = getSummitPhaseForAltitude(alt);
+        // Stage follows the Base Camps actually passed (in order), not raw altitude, so a
+        // lucky fall/bounce can never "skip" the stage banner ahead.
+        const campsCrossed = useGameStore.getState().crossedCheckpoints.length;
+        const activePhase = getSummitStageByCamps(campsCrossed);
         if (altitudeBigRef.current) {
           altitudeBigRef.current.textContent = `${Math.round(alt)}m`;
         }
         if (summitStageSpanRef.current) {
-          summitStageSpanRef.current.textContent = `STAGE ${String(currentStageNum).padStart(2, '0')} / 25`;
+          const label = `STAGE ${activePhase.id} / ${SUMMIT_PHASES.length}`;
+          if (summitStageSpanRef.current.textContent !== label) {
+            summitStageSpanRef.current.textContent = label;
+          }
           summitStageSpanRef.current.style.borderColor = activePhase.accentColor;
         }
         if (summitPhaseTitleRef.current) {
@@ -215,6 +232,10 @@ export function HUD() {
         }
         if (summitPhaseSubRef.current) {
           summitPhaseSubRef.current.textContent = activePhase.subtitle;
+        }
+        if (summitChallengeRef.current) {
+          summitChallengeRef.current.textContent = activePhase.challenge;
+          summitChallengeRef.current.style.borderColor = activePhase.accentColor;
         }
         if (thermometerFillRef.current) {
           thermometerFillRef.current.style.height = `${pct.toFixed(1)}%`;
@@ -266,7 +287,7 @@ export function HUD() {
           <div className="stage-badge-row">
             {isSummit ? (
               <span ref={summitStageSpanRef} className="stage-pill summit-stage-pill">
-                STAGE 01 / 25
+                STAGE 1 / {SUMMIT_PHASES.length}
               </span>
             ) : (
               <span className="stage-pill">STAGE {String(level.id).padStart(2, '0')}</span>
@@ -293,6 +314,11 @@ export function HUD() {
           <div>
             <h2 ref={isSummit ? summitPhaseTitleRef : undefined}>{level.name}</h2>
             <p ref={isSummit ? summitPhaseSubRef : undefined}>{level.subtitle}</p>
+            {isSummit && (
+              <p ref={summitChallengeRef} className="summit-challenge-line">
+                {SUMMIT_PHASES[0].challenge}
+              </p>
+            )}
           </div>
         </div>
 
@@ -393,7 +419,7 @@ export function HUD() {
           <div className="thermometer-track">
             <div ref={thermometerFillRef} className="thermometer-fill" style={{ height: '0%' }} />
             {/* Biome Camp Tick Marks */}
-            {[50, 100, 150, 200].map((campAlt) => (
+            {SUMMIT_PHASES.slice(1).map(({ minAltitudeM: campAlt }) => (
               <div
                 key={campAlt}
                 className="thermometer-camp-tick"
@@ -528,7 +554,7 @@ export function HUD() {
       {playPhase === 'countdown' && (
         <div className="center-banner countdown-banner">
           <div className="banner-sub">
-            {isSummit ? '25-STAGE MEGA-CLIMB' : `STAGE ${level.id}`}
+            {isSummit ? '9-STAGE MOUNTAIN CLIMB' : `STAGE ${level.id}`}
           </div>
           <div className="banner-main">{countdownLabel}</div>
         </div>

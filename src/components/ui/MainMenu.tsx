@@ -83,7 +83,7 @@ export function MainMenu() {
           </div>
           <h1 className="game-logo">ORB RUNNERS</h1>
           <p className="game-tagline">
-            Tilt the world, race friends up the 25-stage Summit Tower, and chase Trackmaster
+            Tilt the world, race friends up the 9-stage Summit mountain, and chase Trackmaster
             Medals!
           </p>
         </div>
@@ -158,11 +158,11 @@ export function MainMenu() {
                 <Users size={12} /> PUBLIC &amp; PRIVATE LOBBIES (CODES + PASSWORDS)
               </span>
             </div>
-            <h2>🏔️ REACH THE SUMMIT (5-PHASE, 25-STAGE MEGA-CLIMB)</h2>
+            <h2>🏔️ REACH THE SUMMIT (9-STAGE MOUNTAIN CLIMB)</h2>
             <p>
-              Ascend a continuous <strong>250-meter, 2km mountain highway</strong> of 25
-              interconnected stages across 5 themed phases! Climb on a live server with friends, pop
-              3D emotes, and unlock 5 Biome Base Camps along the way.
+              Spiral up one continuous <strong>250-meter mountain road</strong> through 9 themed
+              stages, from meadow springs and crystal caves to lava switches and storm gusts. Climb
+              on a live server with friends, pop 3D emotes, and pass 8 Base Camps in order.
             </p>
             <div className="summit-banner-stats">
               <div>
@@ -307,7 +307,7 @@ export function MainMenu() {
             </div>
             <h3 className="level-card-title">Custom Map Studio</h3>
             <p className="level-card-desc">
-              All 15 campaign stages and the 25-stage Summit Tower run on our declarative JSON
+              All 15 campaign stages and the 9-stage Summit mountain run on our declarative JSON
               Level Schema—ready for the Custom Map Builder!
             </p>
           </div>
