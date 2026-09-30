@@ -98,11 +98,11 @@ export function BoostPad({
 
       {/* Side Energy Rails */}
       <mesh position={[-sx / 2 + 0.08, 0.05, 0]}>
-        <boxGeometry args={[0.14, 0.06, sz]} />
+        <boxGeometry args={[0.14, 0.06, sz - 0.03]} />
         <meshStandardMaterial color={color} emissive={color} emissiveIntensity={1.8} />
       </mesh>
       <mesh position={[sx / 2 - 0.08, 0.05, 0]}>
-        <boxGeometry args={[0.14, 0.06, sz]} />
+        <boxGeometry args={[0.14, 0.06, sz - 0.03]} />
         <meshStandardMaterial color={color} emissive={color} emissiveIntensity={1.8} />
       </mesh>
 

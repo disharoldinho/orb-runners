@@ -260,7 +260,7 @@ export function GameCanvas() {
       <Canvas
         shadows
         dpr={dpr}
-        camera={{ fov: 52, near: 0.1, far: 1600, position: [0, 4, 8] }}
+        camera={{ fov: 52, near: 0.3, far: 1600, position: [0, 4, 8] }}
         gl={{
           antialias: true,
           toneMapping: THREE.ACESFilmicToneMapping,

@@ -74,7 +74,7 @@ export function CheckpointGate({
       {[-half, half].map((xPos, idx) => (
         <group key={idx} position={[xPos, 1.5, 0]}>
           <mesh castShadow>
-            <boxGeometry args={[0.32, 3.0, 0.36]} />
+            <boxGeometry args={[0.35, 3.0, 0.41]} />
             <meshStandardMaterial color="#1e293b" metalness={0.8} roughness={0.2} />
           </mesh>
           {/* Neon Vertical Accent Strip */}
