@@ -242,6 +242,7 @@ const MIME_TYPES = {
   '.jpg': 'image/jpeg',
   '.ico': 'image/x-icon',
   '.wasm': 'application/wasm',
+  '.woff2': 'font/woff2',
 };
 
 const httpServer = http.createServer((req, res) => {
