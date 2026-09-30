@@ -1,19 +1,5 @@
 import { Canvas, useFrame } from '@react-three/fiber';
 import { Environment, Lightformer } from '@react-three/drei';
-import {
-  Play,
-  Sparkles,
-  Trophy,
-  Star,
-  Lock,
-  Award,
-  Gamepad2,
-  Flag,
-  Mountain,
-  Users,
-  Globe,
-  Monitor,
-} from 'lucide-react';
 import { useRef } from 'react';
 import * as THREE from 'three';
 import { MAPS } from '../../levels/maps';
@@ -22,7 +8,13 @@ import { useGameStore } from '../../store/useGameStore';
 import { GRAPHICS_QUALITY_LABEL, GRAPHICS_QUALITY_ORDER } from '../../graphics/quality';
 import { CharacterModel } from '../game/CharacterModel';
 import { OrbShell } from '../game/PlayerOrb';
+import { SummitPoster, Wordmark } from './brand';
 import { formatTimeMs } from './HUD';
+import { Icon, MedalDisc } from './icons';
+
+/** Settings start unfolded on roomy screens, folded on phones. */
+const WIDE_SCREEN =
+  typeof window !== 'undefined' && window.innerWidth >= 1100 && window.innerHeight >= 640;
 
 function HeroOrbPreview() {
   const avatar = useGameStore((s) => s.avatar);
@@ -72,271 +64,226 @@ export function MainMenu() {
   const summitStat = progress[SUMMIT_LEVEL_ID];
 
   return (
-    <div className="main-menu-screen">
-      {/* Left Hero Column: Game Branding & Live 3D Avatar Card */}
-      <aside className="menu-hero-panel">
-        <div className="brand-header">
-          <div className="brand-pills-row">
-            <span className="arcade-pill">SUMMIT MULTIPLAYER &amp; 15-MAP CAMPAIGN</span>
-            {gamepadConnected && (
-              <span className="gamepad-connected-pill">
-                <Gamepad2 size={13} />
-                Controller Active
-              </span>
-            )}
-          </div>
-          <h1 className="game-logo">ORB RUNNERS</h1>
-          <p className="game-tagline">
-            Tilt the world, race friends up the 9-stage Summit mountain, and chase Trackmaster
-            Medals!
-          </p>
-        </div>
-
-        <div className="hero-avatar-showcase">
-          <div className="hero-canvas-container">
-            <Canvas camera={{ position: [0, 0.35, 2.05], fov: 44 }}>
-              <Environment resolution={256}>
-                <Lightformer
-                  form="circle"
-                  intensity={3.5}
-                  position={[0, 4, 3]}
-                  scale={4}
-                />
-                <Lightformer
-                  form="ring"
-                  color="#38bdf8"
-                  intensity={2.5}
-                  position={[-4, 2, 2]}
-                  scale={4}
-                />
-              </Environment>
-              <ambientLight intensity={0.85} />
-              <directionalLight position={[3, 5, 4]} intensity={1.4} />
-              <HeroOrbPreview />
-            </Canvas>
-          </div>
-          <div className="hero-avatar-footer">
-            <div>
-              <span className="runner-label">ACTIVE RUNNER</span>
-              <h3>{avatar.name || 'Pip'}</h3>
-            </div>
-            <button
-              className="btn-accent"
-              onClick={() => setScreen('character-creator')}
-            >
-              <Sparkles size={17} />
-              <span>{gamepadConnected ? 'Customize (X)' : 'Customize Buddy'}</span>
-            </button>
-          </div>
-        </div>
-
-        <div className="controls-guide-box">
-          <h4>Controls &amp; Speedrun Rules</h4>
-          <ul>
-            <li>
-              <strong>WASD / Left Stick:</strong> Tilt the stage around your orb
-            </li>
-            <li>
-              <strong>C / Backspace / Pad (B):</strong> Checkpoint / Biome Camp Respawn
-            </li>
-            <li>
-              <strong>R / Delete / Pad (Y):</strong> Instant 00:00.000 Stage Reset
-            </li>
-            <li>
-              <strong>Keys 1–4 (Summit Mode):</strong> Pop live 3D Emotes (👋 🔥 😱 👑)
-            </li>
-          </ul>
-        </div>
-
-        <div className="graphics-quality-box">
-          <span className="graphics-quality-label">
-            <Monitor size={14} />
-            Graphics
+    <div className="menu-screen paper">
+      <header className="menu-top">
+        <Wordmark />
+        <p className="menu-tagline">Tilt the world. Roll the orb. Beat the clock.</p>
+        {gamepadConnected && (
+          <span className="tag tag-mint menu-pad">
+            <Icon name="gamepad" size={16} /> Pad ready
           </span>
-          <div className="graphics-quality-toggle" role="radiogroup" aria-label="Graphics quality">
-            {GRAPHICS_QUALITY_ORDER.map((q) => (
+        )}
+      </header>
+
+      <div className="menu-layout">
+        <div className="menu-side">
+          {/* Runner */}
+          <section className="card runner-card">
+            <div className="runner-porthole">
+              <Canvas camera={{ position: [0, 0.35, 2.05], fov: 44 }} dpr={[1, 1.75]}>
+                <Environment resolution={128}>
+                  <Lightformer form="circle" intensity={3.5} position={[0, 4, 3]} scale={4} />
+                  <Lightformer
+                    form="ring"
+                    color="#3fa9ff"
+                    intensity={2.2}
+                    position={[-4, 2, 2]}
+                    scale={4}
+                  />
+                </Environment>
+                <ambientLight intensity={0.9} />
+                <directionalLight position={[3, 5, 4]} intensity={1.4} />
+                <HeroOrbPreview />
+              </Canvas>
+            </div>
+            <div className="runner-info">
+              <small>Your runner</small>
+              <h3>{avatar.name || 'Pip'}</h3>
               <button
-                key={q}
-                role="radio"
-                aria-checked={graphicsQuality === q}
-                className={graphicsQuality === q ? 'active' : ''}
-                onClick={() => setGraphicsQuality(q)}
+                className="btn btn-paper btn-sm"
+                onClick={() => setScreen('character-creator')}
               >
-                {GRAPHICS_QUALITY_LABEL[q]}
+                <Icon name="sparkle" size={16} />
+                <span>Customise</span>
+                {gamepadConnected && <kbd>X</kbd>}
               </button>
-            ))}
-          </div>
-        </div>
-      </aside>
+            </div>
+          </section>
 
-      {/* Right Column: Reach the Summit Banner + 15-Stage Campaign Grid */}
-      <main className="menu-levels-panel">
-        {/* ================= REACH THE SUMMIT MULTIPLAYER HERO BANNER ================= */}
-        <div className="summit-menu-banner">
-          <div className="summit-menu-banner-left">
-            <div className="summit-banner-badges">
-              <span className="summit-featured-pill">
-                <Mountain size={13} /> NEW MULTIPLAYER MODE
-              </span>
-              <span className="summit-live-pill">
-                <Users size={12} /> PUBLIC &amp; PRIVATE LOBBIES (CODES + PASSWORDS)
+          {/* Settings + controls, folded away */}
+          <details className="card fold" open={WIDE_SCREEN}>
+            <summary>
+              <Icon name="gfx" size={18} />
+              <span>Settings &amp; controls</span>
+              <Icon name="chevronDown" size={18} className="fold-chev" />
+            </summary>
+            <div className="fold-body">
+              <div className="setting-row">
+                <span>Graphics</span>
+                <div className="segmented" role="radiogroup" aria-label="Graphics quality">
+                  {GRAPHICS_QUALITY_ORDER.map((q) => (
+                    <button
+                      key={q}
+                      role="radio"
+                      aria-checked={graphicsQuality === q}
+                      className={graphicsQuality === q ? 'on' : ''}
+                      onClick={() => setGraphicsQuality(q)}
+                    >
+                      {GRAPHICS_QUALITY_LABEL[q]}
+                    </button>
+                  ))}
+                </div>
+              </div>
+              <ul className="controls-list">
+                <li>
+                  <span>Tilt</span>
+                  <b>
+                    <kbd>WASD</kbd> <kbd>Stick</kbd> <kbd>Touch pad</kbd>
+                  </b>
+                </li>
+                <li>
+                  <span>Respawn</span>
+                  <b>
+                    <kbd>C</kbd> <kbd>⌫</kbd> <kbd>Pad B</kbd>
+                  </b>
+                </li>
+                <li>
+                  <span>Restart</span>
+                  <b>
+                    <kbd>R</kbd> <kbd>Del</kbd> <kbd>Pad Y</kbd>
+                  </b>
+                </li>
+                <li>
+                  <span>Run menu</span>
+                  <b>
+                    <kbd>Esc</kbd> <kbd>Pad Start</kbd>
+                  </b>
+                </li>
+                <li>
+                  <span>Ghost / emotes</span>
+                  <b>
+                    <kbd>G</kbd> <kbd>1–4</kbd>
+                  </b>
+                </li>
+              </ul>
+            </div>
+          </details>
+        </div>
+
+        <div className="menu-main">
+          {/* Summit */}
+          <section className="card summit-card">
+            <div className="summit-art">
+              <SummitPoster />
+              <span className="tag tag-tomato summit-live">
+                <Icon name="users" size={14} /> Live multiplayer
               </span>
             </div>
-            <h2>🏔️ REACH THE SUMMIT (9-STAGE MOUNTAIN CLIMB)</h2>
-            <p>
-              Spiral up one continuous <strong>250-meter mountain road</strong> through 9 themed
-              stages, from meadow springs and crystal caves to lava switches and storm gusts. Climb
-              on a live server with friends, pop 3D emotes, and pass 8 Base Camps in order.
-            </p>
-            <div className="summit-banner-stats">
-              <div>
-                <span>PEAK ALTITUDE</span>
-                <strong>{summitBestAltitudeM}m / 250m</strong>
-              </div>
-              <div>
-                <span>FASTEST SUMMIT</span>
-                <strong>
-                  {summitStat?.bestTimeMs ? formatTimeMs(summitStat.bestTimeMs) : '--:--.---'}
-                </strong>
-              </div>
-            </div>
-          </div>
-
-          <div className="summit-menu-banner-actions">
-            <button
-              className="btn-summit-Quick"
-              onClick={() =>
-                launchSummitClimb({
-                  mode: 'public',
-                  action: 'public',
-                  lobbyCode: 'PUBLIC',
-                  lobbyName: 'Global Summit Server',
-                  password: '',
-                  includeBots: true,
-                })
-              }
-            >
-              <Globe size={18} />
-              <span>Play Public Server</span>
-            </button>
-            <button className="btn-summit-private" onClick={openSummitLobbyModal}>
-              <Lock size={16} />
-              <span>Private Lobbies (Code / Password)</span>
-            </button>
-          </div>
-        </div>
-
-        <div className="levels-panel-header">
-          <div>
-            <h2>Official Speedrun Campaign ({MAPS.length} Maps)</h2>
-            <p>
-              Beat Bronze, Silver, Gold, and the secret green <strong>Author Medal</strong> times!
-            </p>
-          </div>
-          <div className="medal-header-pills">
-            {authorMedals > 0 && (
-              <div className="author-summary-badge">
+            <div className="summit-body">
+              <h2>Reach the Summit</h2>
+              <p>
+                One 250 m spiral road, 9 themed stages, 8 base camps. Race everyone to the crown.
+              </p>
+              <div className="summit-stats">
                 <span>
-                  🎖️ {authorMedals} / {MAPS.length} Author
+                  <small>Peak</small>
+                  <b>{summitBestAltitudeM} m</b>
+                </span>
+                <span>
+                  <small>Best climb</small>
+                  <b>{summitStat?.bestTimeMs ? formatTimeMs(summitStat.bestTimeMs) : '--.---'}</b>
                 </span>
               </div>
-            )}
-            <div className="medal-summary-badge">
-              <Award size={20} />
-              <span>
-                {totalMedals} / {MAPS.length} Medaled
-              </span>
-            </div>
-          </div>
-        </div>
-
-        <div className="levels-grid">
-          {MAPS.map((map) => {
-            const stat = progress[map.id];
-            const medal = stat?.medal || 'none';
-            const isSelected = currentLevelId === map.id;
-            const cpCount = map.checkpoints?.length ?? 1;
-
-            return (
-              <div
-                key={map.id}
-                className={`level-card medal-${medal} ${
-                  isSelected ? 'gamepad-selected-card' : ''
-                }`}
-                onClick={() => selectLevel(map.id)}
-              >
-                <div className="level-card-top">
-                  <div className="level-card-badges">
-                    <span
-                      className="level-num-badge"
-                      style={{ backgroundColor: map.accentColor }}
-                    >
-                      MAP {String(map.id).padStart(2, '0')}
-                    </span>
-                    <span className="level-cp-badge" title={`${cpCount} Checkpoints`}>
-                      <Flag size={11} />
-                      {cpCount} CP
-                    </span>
-                  </div>
-
-                  <div className="difficulty-stars" title={`Difficulty ${map.difficulty}/5`}>
-                    {Array.from({ length: 5 }).map((_, i) => (
-                      <Star
-                        key={i}
-                        size={13}
-                        fill={i < map.difficulty ? '#facc15' : 'transparent'}
-                        color={i < map.difficulty ? '#facc15' : '#64748b'}
-                      />
-                    ))}
-                  </div>
-                </div>
-
-                <h3 className="level-card-title">{map.name}</h3>
-                <p className="level-card-desc">{map.subtitle}</p>
-
-                <div className="level-card-footer">
-                  <div className="level-record-info">
-                    <span className="record-label">PERSONAL BEST</span>
-                    <strong className="record-value">
-                      {stat?.bestTimeMs ? formatTimeMs(stat.bestTimeMs) : '--:--.---'}
-                    </strong>
-                    <span className="gold-target-hint">
-                      🎖️ {(map.medalTimesMs.author / 1000).toFixed(1)}s · 🥇{' '}
-                      {(map.medalTimesMs.gold / 1000).toFixed(1)}s
-                    </span>
-                  </div>
-
-                  <div className="level-play-col">
-                    {medal !== 'none' && (
-                      <span className={`medal-chip ${medal}`}>
-                        <Trophy size={13} />
-                        {medal.toUpperCase()}
-                      </span>
-                    )}
-                    <button className="play-stage-btn" aria-label={`Play ${map.name}`}>
-                      <Play size={16} fill="currentColor" />
-                      <span>{gamepadConnected && isSelected ? 'Play (A)' : 'Roll!'}</span>
-                    </button>
-                  </div>
-                </div>
+              <div className="summit-actions">
+                <button
+                  className="btn btn-go"
+                  onClick={() =>
+                    launchSummitClimb({
+                      mode: 'public',
+                      action: 'public',
+                      lobbyCode: 'PUBLIC',
+                      lobbyName: 'Global Summit Server',
+                      password: '',
+                      includeBots: true,
+                    })
+                  }
+                >
+                  <Icon name="mountain" size={20} />
+                  <span>Play Public Server</span>
+                </button>
+                <button className="btn btn-paper" onClick={openSummitLobbyModal}>
+                  <Icon name="lock" size={18} />
+                  <span>Private lobby</span>
+                </button>
               </div>
-            );
-          })}
-
-          {/* Future Level Editor Teaser Card */}
-          <div className="level-card editor-teaser-card">
-            <div className="level-card-top">
-              <span className="level-num-badge editor-badge">FUTURE UPDATE</span>
-              <Lock size={15} color="#94a3b8" />
             </div>
-            <h3 className="level-card-title">Custom Map Studio</h3>
-            <p className="level-card-desc">
-              All 15 campaign stages and the 9-stage Summit mountain run on our declarative JSON
-              Level Schema—ready for the Custom Map Builder!
-            </p>
-          </div>
+          </section>
+
+          {/* Campaign */}
+          <section className="campaign">
+            <header className="section-head">
+              <h2>
+                Campaign <small>{MAPS.length} stages</small>
+              </h2>
+              <div className="medal-tally">
+                <span title="Stages with a medal">
+                  <MedalDisc tier="gold" size={18} />
+                  {totalMedals}/{MAPS.length}
+                </span>
+                <span title="Author medals">
+                  <MedalDisc tier="author" size={18} />
+                  {authorMedals}
+                </span>
+              </div>
+            </header>
+
+            <div className="ticket-list">
+              {MAPS.map((map) => {
+                const stat = progress[map.id];
+                const medal = stat?.medal || 'none';
+                const isSelected = currentLevelId === map.id;
+                return (
+                  <button
+                    key={map.id}
+                    className={`ticket ${isSelected && gamepadConnected ? 'is-picked' : ''}`}
+                    style={{ ['--tk' as string]: map.accentColor }}
+                    onClick={() => selectLevel(map.id)}
+                    aria-label={`Play ${map.name}`}
+                  >
+                    <span className="ticket-num">{String(map.id).padStart(2, '0')}</span>
+                    <span className="ticket-body">
+                      <span className="ticket-title">{map.name}</span>
+                      <span className="ticket-sub">{map.subtitle}</span>
+                      <span className="ticket-meta">
+                        <span className="pips" aria-label={`Difficulty ${map.difficulty} of 5`}>
+                          {Array.from({ length: 5 }).map((_, i) => (
+                            <i key={i} className={i < map.difficulty ? 'on' : ''} />
+                          ))}
+                        </span>
+                        <span className="ticket-pb">
+                          <Icon name="stopwatch" size={13} />
+                          {stat?.bestTimeMs ? formatTimeMs(stat.bestTimeMs) : '--.---'}
+                        </span>
+                        <span className="ticket-target" title="Gold target">
+                          <MedalDisc tier="gold" size={12} />
+                          {(map.medalTimesMs.gold / 1000).toFixed(1)}
+                        </span>
+                      </span>
+                    </span>
+                    <span className="ticket-end">
+                      <MedalDisc tier={medal} size={26} />
+                      <span className="ticket-go">
+                        <Icon name="play" size={16} />
+                        {gamepadConnected && isSelected && <kbd>A</kbd>}
+                      </span>
+                    </span>
+                  </button>
+                );
+              })}
+            </div>
+          </section>
         </div>
-      </main>
+      </div>
     </div>
   );
 }
