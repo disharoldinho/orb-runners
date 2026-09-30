@@ -6,6 +6,7 @@ import * as THREE from 'three';
 import { useGameStore } from '../../store/useGameStore';
 import { CheckpointDef } from '../../types/level';
 import { spawnParticleBurst, spawnShockwave } from '../game/ParticleFX';
+import { getBeamMaterial, getCurtainMaterial } from '../../graphics/fxMaterials';
 
 export function CheckpointGate({
   id,
@@ -23,14 +24,9 @@ export function CheckpointGate({
   const beaconRef = useRef<THREE.Mesh>(null);
 
   useFrame((state, delta) => {
-    if (curtainRef.current) {
-      const mat = curtainRef.current.material as THREE.MeshBasicMaterial;
-      mat.opacity = isCrossed
-        ? 0.1 + Math.sin(state.clock.elapsedTime * 3) * 0.03
-        : 0.22 + Math.sin(state.clock.elapsedTime * 5) * 0.06;
-    }
     if (beaconRef.current) {
       beaconRef.current.rotation.y += delta * 2.5;
+      beaconRef.current.position.y = 3.58 + Math.sin(state.clock.elapsedTime * 2.2) * 0.08;
     }
   });
 
@@ -126,17 +122,21 @@ export function CheckpointGate({
             : `CHECKPOINT 0${order}`}
       </Text>
 
-      {/* Holographic Laser Curtain */}
-      <mesh ref={curtainRef} position={[0, 1.42, 0]}>
+      {/* Holographic energy curtain (animated shader) */}
+      <mesh
+        ref={curtainRef}
+        position={[0, 1.42, 0]}
+        material={getCurtainMaterial(activeColor, isCrossed ? 0.45 : 1)}
+      >
         <planeGeometry args={[width - 0.35, 2.75]} />
-        <meshBasicMaterial
-          color={activeColor}
-          transparent
-          opacity={0.22}
-          side={THREE.DoubleSide}
-          depthWrite={false}
-        />
       </mesh>
+
+      {/* Landmark light beam over the next (not yet crossed) gate */}
+      {!isCrossed && (
+        <mesh position={[0, 3.3 + 28, 0]} material={getBeamMaterial(activeColor)}>
+          <cylinderGeometry args={[0.55, 0.55, 56, 16, 1, true]} />
+        </mesh>
+      )}
 
       {/* Floor Threshold Strip */}
       <mesh position={[0, 0.03, 0]}>
