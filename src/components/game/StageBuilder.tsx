@@ -1,3 +1,4 @@
+import { useMemo } from 'react';
 import { LevelData } from '../../types/level';
 import { BoostPad } from '../obstacles/BoostPad';
 import { Bumper } from '../obstacles/Bumper';
@@ -9,25 +10,27 @@ import { MovingPlatform } from '../obstacles/MovingPlatform';
 import { RotatingHazard } from '../obstacles/RotatingHazard';
 import { StaticBlock } from '../obstacles/StaticBlock';
 import { ToggleSwitch } from '../obstacles/ToggleSwitch';
+import { getBlockLayers, isHiddenBlock } from '../../levels/visualLayers';
+
 
 /**
  * The Summit's old boxy decorative mountain core is replaced by the procedural terrain
  * (environment/SummitWorld). Decorative only: these blocks never had colliders.
  */
-function isReplacedByTerrain(id: string) {
-  return id.startsWith('sum-core') || /^sum-s9-decor-/.test(id);
-}
+const isReplacedByTerrain = isHiddenBlock;
 
 interface StageBuilderProps {
   level: LevelData;
 }
 
 export function StageBuilder({ level }: StageBuilderProps) {
+  // depth-bias layers for blocks that genuinely share a surface (levels/visualLayers)
+  const layers = useMemo(() => getBlockLayers(level), [level]);
   return (
     <group>
       {/* Static Blocks, Ramps, & Rails */}
       {level.blocks.filter((block) => !isReplacedByTerrain(block.id)).map((block) => (
-        <StaticBlock key={block.id} {...block} />
+        <StaticBlock key={block.id} {...block} layer={layers.get(block.id) ?? 0} />
       ))}
 
       {/* Kinematic Moving Platforms */}

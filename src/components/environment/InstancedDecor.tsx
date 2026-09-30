@@ -1,18 +1,13 @@
 import { useEffect, useMemo } from 'react';
 import { useFrame } from '@react-three/fiber';
 import * as THREE from 'three';
-import { DecorKind, getDecorGeometry, getDecorMaterial } from '../../graphics/decorGeometry';
+import {
+  DecorInstance,
+  getDecorGeometry,
+  getDecorMaterial,
+} from '../../graphics/decorGeometry';
 
-export interface DecorInstance {
-  kind: DecorKind;
-  x: number;
-  y: number;
-  z: number;
-  rotY: number;
-  scale: number;
-  /** Colour tint multiplier (0.8..1.2 around white). */
-  tint: number;
-}
+export type { DecorInstance };
 
 interface Batch {
   hi: THREE.InstancedMesh;

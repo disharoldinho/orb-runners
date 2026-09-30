@@ -3,7 +3,8 @@ import { useFrame } from '@react-three/fiber';
 import * as THREE from 'three';
 import { GLSL_NOISE, sharedUniforms } from '../../graphics/shaderLib';
 
-export type Puff = [x: number, y: number, z: number, scale: number];
+import type { Puff } from '../../graphics/decorGeometry';
+export type { Puff };
 
 /**
  * Soft "volumetric-looking" cumulus puffs: camera-facing instanced quads with an fbm

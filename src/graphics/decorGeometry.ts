@@ -18,6 +18,67 @@ export type DecorKind =
   | 'deadtree'
   | 'tuft';
 
+export interface DecorInstance {
+  kind: DecorKind;
+  x: number;
+  y: number;
+  z: number;
+  rotY: number;
+  scale: number;
+  /** Colour tint multiplier (0.8..1.2 around white). */
+  tint: number;
+}
+
+/**
+ * Horizontal footprint radius (m, at scale 1) of each prop's high-detail mesh. Used to keep
+ * props from growing into each other; scripts/checkMapVisuals.mjs verifies it against the
+ * real geometry.
+ */
+export const DECOR_RADIUS: Record<DecorKind, number> = {
+  pine: 1.7,
+  snowpine: 1.7,
+  birch: 1.85,
+  rock: 1.62,
+  crystal: 1.37,
+  cactus: 1.26,
+  ice: 1.38,
+  basalt: 1.44,
+  deadtree: 1.33,
+  tuft: 0.31,
+};
+
+/**
+ * Minimum-spacing helper: props (except ground-cover tufts) must keep their trunks at least
+ * `k` x (sum of footprint radii) apart, so canopies and rocks never grow through each other.
+ */
+export function makeSpacing(k = 0.5, cell = 6) {
+  const grid = new Map<string, { x: number; z: number; r: number }[]>();
+  const key = (x: number, z: number) => `${Math.floor(x / cell)},${Math.floor(z / cell)}`;
+  return {
+    fits(kind: DecorKind, x: number, z: number, scale: number) {
+      if (kind === 'tuft') return true;
+      const r = DECOR_RADIUS[kind] * scale;
+      const gx = Math.floor(x / cell);
+      const gz = Math.floor(z / cell);
+      for (let i = gx - 1; i <= gx + 1; i++)
+        for (let j = gz - 1; j <= gz + 1; j++)
+          for (const o of grid.get(`${i},${j}`) ?? [])
+            if (Math.hypot(o.x - x, o.z - z) < k * (o.r + r)) return false;
+      return true;
+    },
+    add(kind: DecorKind, x: number, z: number, scale: number) {
+      if (kind === 'tuft') return;
+      const k2 = key(x, z);
+      const arr = grid.get(k2) ?? [];
+      arr.push({ x, z, r: DECOR_RADIUS[kind] * scale });
+      grid.set(k2, arr);
+    },
+  };
+}
+
+/** Billboard cloud puff: centre and size (the quad spans 1.6·s wide by s tall). */
+export type Puff = [x: number, y: number, z: number, scale: number];
+
 function part(
   g: THREE.BufferGeometry,
   color: string,

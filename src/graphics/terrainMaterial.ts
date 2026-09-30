@@ -75,7 +75,7 @@ export function makeTerrainMaterial(
            vec3 N = normalize(vTNormal);
            float flat01 = smoothstep(0.55, 0.85, N.y);
            float n1 = orbNoise(wp.xz * 0.11);
-           float n2 = orbNoise(wp.xz * 0.9 + wp.y * 0.1);
+           float n2 = orbNoise(wp.xz * 0.3 + wp.y * 0.05);
            float yb = wp.y + (n1 - 0.5) * 7.0;
            vec3 ground = uGround[0];
            vec3 rock = uRock[0];
@@ -105,18 +105,19 @@ export function makeTerrainMaterial(
              rock = mix(rock, nr, natural);
              band = natural > 0.5 ? (ya > 95.0 ? 5 : 0) : band;
            }
-           // rock strata + grain (world-space, so cliffs never stretch)
-           float strata = orbNoise(vec2(wp.y * 0.7 + orbNoise(wp.xz * 0.05) * 3.0, 0.5));
+           // rock strata + broad grain (world-space, so cliffs never stretch). Sub-metre
+           // noise was dropped: it speckled up close and shimmered in the distance.
+           float strata = orbNoise(vec2(wp.y * 0.5 + orbNoise(wp.xz * 0.05) * 3.0, 0.5));
            #ifdef TERRAIN_LOW
              float grain = n2;
            #else
-             float grain = orbNoise3(wp * 0.35) * 0.6 + orbNoise3(wp * 1.1) * 0.4;
+             float grain = orbNoise3(wp * 0.3) * 0.7 + orbNoise3(wp * 0.11) * 0.3;
            #endif
-           rock *= 0.72 + 0.35 * strata + 0.2 * (grain - 0.5);
-           // ground cover: tufts / snow sparkle / sand ripples
-           float tuft = orbNoise(wp.xz * 2.3);
-           ground *= 0.86 + 0.24 * tuft + 0.12 * (n1 - 0.5);
-           if (band == 4) ground *= 0.92 + 0.12 * sin(wp.x * 1.3 + wp.z * 0.6 + n1 * 6.0); // canyon ripples
+           rock *= 0.78 + 0.28 * strata + 0.14 * (grain - 0.5);
+           // ground cover: soft patches (no per-pixel tuft noise)
+           float tuft = orbNoise(wp.xz * 0.45);
+           ground *= 0.9 + 0.14 * tuft + 0.1 * (n1 - 0.5);
+           if (band == 4) ground *= 0.95 + 0.07 * sin(wp.x * 0.7 + wp.z * 0.3 + n1 * 6.0); // canyon ripples
            // snowline dusting on shallow ledges of the upper mountain
            float snowDust = smoothstep(0.8, 0.95, N.y) * smoothstep(100.0, 112.0, wp.y) * (1.0 - step(163.0, wp.y) * step(wp.y, 221.0) * (1.0 - natural));
            vec3 col = mix(rock, ground, flat01);
@@ -128,14 +129,12 @@ export function makeTerrainMaterial(
            // caldera: glowing lava veins in the basalt
            if (band == 7) {
              float vein = 1.0 - orbVoronoiEdge(wp.xz * 0.12 + vec2(wp.y * 0.05));
-             vein = smoothstep(0.9, 0.99, vein) * (0.7 + 0.3 * sin(uTime * 2.0 + wp.x * 0.2));
-             gTerrainEmissive = vec3(1.0, 0.35, 0.05) * vein * 1.6;
+             vein = smoothstep(0.92, 0.99, vein) * (0.8 + 0.2 * sin(uTime * 0.8 + wp.x * 0.2));
+             gTerrainEmissive = vec3(1.0, 0.35, 0.05) * vein * 1.2;
            }
-           // crystal band: faint amethyst glints
-           if (band == 3) {
-             float glint = smoothstep(0.93, 1.0, orbNoise(wp.xz * 1.7 + wp.y));
-             gTerrainEmissive += vec3(0.8, 0.3, 1.0) * glint * 0.8;
-           }
+           // crystal band: a soft amethyst sheen on flat ground (the old per-pixel glints
+           // sparkled like noise)
+           if (band == 3) gTerrainEmissive += vec3(0.5, 0.2, 0.7) * flat01 * smoothstep(0.6, 0.9, n1) * 0.12;
            gTerrainEmissive += vec3(0.5, 0.6, 0.8) * uFlash * 0.25;
          }`,
       )
@@ -148,6 +147,6 @@ export function makeTerrainMaterial(
         '#include <emissivemap_fragment>\ntotalEmissiveRadiance += gTerrainEmissive;',
       );
   };
-  mat.customProgramCacheKey = () => `orb-terrain2-${quality}`;
+  mat.customProgramCacheKey = () => `orb-terrain3-${quality}`;
   return mat;
 }

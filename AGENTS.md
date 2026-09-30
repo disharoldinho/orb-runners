@@ -15,6 +15,7 @@ Welcome! This repository (**Orb Runners**) is co-developed by **Antigravity** an
 - `npm run dev` — Starts the Vite development server on `http://localhost:5173` (automatically proxies `/ws-summit` to `ws://localhost:5174`).
 - `npm run server` — Starts the Summit Multiplayer WebSocket & static HTTP server on port `5174`.
 - `npm run build` — Runs `tsc -b && vite build`. **Always verify `npm run build` exits with code 0 before committing!**
+- `npm run maps:check` — Map visual lint over all campaign maps and the Summit (`scripts/checkMapVisuals.mjs`): z-fighting/coplanar faces, terrain crowding or clipping the road, props in the track or inside each other, clouds through the course, holes in island meshes. Run it after any level, block-visual or scenery change; it must print `OK`.
 
 ---
 
@@ -33,6 +34,8 @@ Welcome! This repository (**Orb Runners**) is co-developed by **Antigravity** an
    - **Anti-skip rules** (keep them when editing): every road block has 1.2m rails (1.8m+ walls on corners, only deliberate one-sided ledges on ice/storm catwalks); jump pads always use `targetPosition` + `arcHeight` and sit in walled funnels; the Summit uses no boost pads (every climb is 11.3°, rollable from standstill; boosts on ramps turned crests into launch ramps) and no pad may launch the orb past a stage; the 8 Base Camps are full-width gates with `sequentialCheckpoints: true` (out-of-order gates are rejected and the summit goal needs all 8); `respawnFallDepth: 6` + `killZones` catch any fall onto a lower loop, so dropping down the mountain only sends you back to your last camp.
    - Run `npm run summit:verify` after geometry changes (slopes < 14°, clearance between loops, jump-pad trajectories incl. max steering, cross-stage contacts only through camps, gates, waypoints).
    - Whenever `src/levels/summitMap.ts` changes, run `npm run summit:waypoints`: it regenerates `server/summitWaypoints.json` from `SUMMIT_BOT_WAYPOINTS`, which `buildSummitWaypoints()` in `server/summitServer.mjs` loads so the AI Climber Bots follow the new road.
+5. **Block visuals vs colliders (`src/levels/blockParts.ts`)**:
+   - `StaticBlock` colliders come from `blockColliderParts()` (invisible meshes, `includeInvisible`): never edit that list, it is the physics. Drawn meshes come from `blockVisualParts()` and may change freely. Surfaces are procedural and anchored to world position in the block's axes (`graphics/surfaceMaterials.ts`), so equal-theme overlaps render identically; genuinely different coplanar overlaps get a small depth-bias layer from `levels/visualLayers.ts` (don't add ad-hoc `polygonOffset` elsewhere).
 
 ---
 

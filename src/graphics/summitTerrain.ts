@@ -137,8 +137,11 @@ function makeFloor(b: LevelData['blocks'][number]): Floor {
 }
 
 const tmp = new THREE.Vector3();
-/** Surface height of a floor's top plane at (x, z) plus footprint distance. */
-function floorQuery(f: Floor, x: number, z: number): { y: number; d: number } {
+/**
+ * Surface height of a floor's top plane at (x, z), footprint distance, and the deck-top
+ * height at the nearest point of the footprint (yEdge).
+ */
+function floorQuery(f: Floor, x: number, z: number): { y: number; d: number; yEdge: number } {
   const ny = Math.abs(f.n.y) < 0.2 ? 0.2 : f.n.y;
   const y = f.p0.y - (f.n.x * (x - f.p0.x) + f.n.z * (z - f.p0.z)) / ny;
   tmp.set(x - f.c.x, y - f.c.y, z - f.c.z);
@@ -146,7 +149,10 @@ function floorQuery(f: Floor, x: number, z: number): { y: number; d: number } {
   const lz = tmp.dot(f.ez);
   const dx = Math.max(Math.abs(lx) - f.hx, 0);
   const dz = Math.max(Math.abs(lz) - f.hz, 0);
-  return { y, d: Math.hypot(dx, dz) };
+  const cx = Math.max(-f.hx, Math.min(f.hx, lx));
+  const cz = Math.max(-f.hz, Math.min(f.hz, lz));
+  const yEdge = f.p0.y + f.ex.y * cx + f.ez.y * cz;
+  return { y, d: Math.hypot(dx, dz), yEdge };
 }
 
 const cache = new Map<string, SummitTerrain>();
@@ -212,6 +218,10 @@ export function getSummitTerrain(level: LevelData, route: Vec3[], cell: number):
   });
 
   const margin = Math.max(2.2, cell * 1.7);
+  // Road shoulder: a flat gutter below the deck edge, then a slope of at most 1.8:1. The flat
+  // part is widened by the cell size so the interpolated mesh (not just its vertices) stays
+  // clear of deck edges, curbs and rails.
+  const shoulderFlat = 1.0 + 1.5 * cell;
   const pad = 30;
   const xs = buildAxis(minX - pad, maxX + pad, cell, 950, 1.2);
   const zs = buildAxis(minZ - pad, maxZ + pad, cell, 950, 1.2);
@@ -238,6 +248,7 @@ export function getSummitTerrain(level: LevelData, route: Vec3[], cell: number):
       const x = xs[ix];
       let capStrict = Infinity;
       let capMargin = Infinity;
+      let capShoulder = Infinity;
       let nearD = Infinity;
       let wSum = 0;
       let ySum = 0;
@@ -258,6 +269,11 @@ export function getSummitTerrain(level: LevelData, route: Vec3[], cell: number):
             capStrict = Math.min(capStrict, q.y - 1.3);
             strictYs.push(q.y);
           } else if (q.d <= margin) capMargin = Math.min(capMargin, q.y - 1.3 - 2.2 * q.d);
+          if (q.d > 0.0001 && q.d < 25)
+            capShoulder = Math.min(
+              capShoulder,
+              q.yEdge - 0.6 + Math.max(0, q.d - shoulderFlat) * 1.8,
+            );
           if (q.d < nearD) nearD = q.d;
           soft.push(q);
         }
@@ -359,7 +375,7 @@ export function getSummitTerrain(level: LevelData, route: Vec3[], cell: number):
         }
       }
 
-      let h = Math.min(desired, capStrict, capMargin, capPath, capLava);
+      let h = Math.min(desired, capStrict, capMargin, capShoulder, capPath, capLava);
       if (!Number.isFinite(h)) h = Number.isNaN(nearY) ? -8 : nearY - 1.3;
       heights[iz * nx + ix] = h;
       flags[iz * nx + ix] = strict

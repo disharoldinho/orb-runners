@@ -3,7 +3,10 @@ import { useFrame } from '@react-three/fiber';
 import { RapierRigidBody, RigidBody, useBeforePhysicsStep } from '@react-three/rapier';
 import * as THREE from 'three';
 import { MovingPlatformDef } from '../../types/level';
-import { getCheckerTexture, getTileBumpMap } from './StaticBlock';
+import { THEME_PALETTES } from './StaticBlock';
+import { getSharedMaterial, getSurfaceMaterial } from '../../graphics/surfaceMaterials';
+import { useGameStore } from '../../store/useGameStore';
+import { PLATFORM_LAYER } from '../../levels/visualLayers';
 
 export function MovingPlatform({
   start,
@@ -17,8 +20,34 @@ export function MovingPlatform({
   const thrusterRingRef = useRef<THREE.Mesh>(null);
   const [sx, sy, sz] = size;
 
-  const checkerTex = useMemo(() => getCheckerTexture(theme, sx, sz), [theme, sx, sz]);
-  const bumpTex = useMemo(() => getTileBumpMap(sx, sz), [sx, sz]);
+  const quality = useGameStore((st) => st.graphicsQuality);
+  // Same procedural surface as the static blocks (the old canvas checker was UV-stretched on
+  // the sides), riding with the platform. PLATFORM_LAYER: platforms dock flush with decks, so they
+  // win the depth test instead of z-fighting at the stops.
+  const deckMat = useMemo(
+    () =>
+      getSurfaceMaterial(theme, 'normal', THEME_PALETTES[theme] ?? THEME_PALETTES.meadow, quality, {
+        anchor: 'local',
+        layer: PLATFORM_LAYER,
+      }),
+    [theme, quality]
+  );
+  const rimMat = useMemo(
+    () =>
+      getSharedMaterial(
+        'platform-rim',
+        () =>
+          new THREE.MeshStandardMaterial({
+            color: '#f97316',
+            emissive: '#f97316',
+            emissiveIntensity: 0.45,
+            metalness: 0.4,
+            roughness: 0.3,
+          }),
+        PLATFORM_LAYER
+      ),
+    []
+  );
 
   // Drive the kinematic body once per physics sub-step (not once per rendered frame):
   // at low frame rates a per-frame target makes the platform cover a whole frame of travel
@@ -55,27 +84,13 @@ export function MovingPlatform({
       restitution={0.15}
     >
       {/* Main Beveled Deck */}
-      <mesh receiveShadow castShadow>
+      <mesh receiveShadow castShadow material={deckMat}>
         <boxGeometry args={[sx, sy, sz]} />
-        <meshStandardMaterial
-          map={checkerTex}
-          bumpMap={bumpTex}
-          bumpScale={0.015}
-          roughness={0.3}
-          metalness={0.25}
-        />
       </mesh>
 
       {/* Glowing Hazard Rim */}
-      <mesh position={[0, -0.04, 0]}>
+      <mesh position={[0, -0.04, 0]} material={rimMat}>
         <boxGeometry args={[sx + 0.14, sy * 0.65, sz + 0.14]} />
-        <meshStandardMaterial
-          color="#f97316"
-          emissive="#f97316"
-          emissiveIntensity={0.5}
-          metalness={0.5}
-          roughness={0.2}
-        />
       </mesh>
 
       {/* Hover Thruster Pod Underneath */}
