@@ -13,15 +13,19 @@ export const MAPS: LevelData[] = [
     accentColor: '#2ec4b6',
     spawnPosition: [0, 1.0, 0],
     killPlaneY: -12,
-    goalPosition: [0, -1.7, -36],
+    // Onboarding flow: roll -> gentle descent -> wide runway (checkpoint) -> funnel into a
+    // railed precision lane -> open finish plaza. Every width change is capped with a
+    // low wall so the only way off is over a rail-less edge the player can see coming.
+    goalPosition: [0, -1.7, -63],
     medalTimesMs: {
-      author: 5800,
-      gold: 7500,
-      silver: 11500,
-      bronze: 20000,
+      author: 8400,
+      gold: 10800,
+      silver: 16000,
+      bronze: 27000,
     },
     checkpoints: [
       { id: 'm1-cp1', order: 1, position: [0, -1.7, -21] },
+      { id: 'm1-cp2', order: 2, position: [0, -1.7, -46] },
     ],
     blocks: [
       { id: 'm1-b1', position: [0, 0, -4], size: [7, 0.6, 12], theme: 'meadow', rails: 'both' },
@@ -40,11 +44,25 @@ export const MAPS: LevelData[] = [
         theme: 'meadow',
         rails: 'both',
       },
+      // Funnel 8 m -> 6 m -> 4.5 m, with end caps closing the steps.
+      { id: 'm1-cap1l', position: [-3.5, -1.3, -38.6], size: [1.0, 0.8, 0.3], theme: 'warning' },
+      { id: 'm1-cap1r', position: [3.5, -1.3, -38.6], size: [1.0, 0.8, 0.3], theme: 'warning' },
+      { id: 'm1-b4', position: [0, -2.0, -41.25], size: [6, 0.6, 5.5], theme: 'meadow', rails: 'both' },
+      { id: 'm1-cap2l', position: [-2.625, -1.3, -44.1], size: [0.75, 0.8, 0.3], theme: 'warning' },
+      { id: 'm1-cap2r', position: [2.625, -1.3, -44.1], size: [0.75, 0.8, 0.3], theme: 'warning' },
+      // Precision lane: narrow but fully railed, teaches small steering inputs.
+      { id: 'm1-b5', position: [0, -2.0, -50], size: [4.5, 0.6, 12], theme: 'cobalt', rails: 'both' },
+      { id: 'm1-cap3l', position: [-3.375, -1.3, -55.9], size: [2.25, 0.8, 0.3], theme: 'warning' },
+      { id: 'm1-cap3r', position: [3.375, -1.3, -55.9], size: [2.25, 0.8, 0.3], theme: 'warning' },
+      // Finish plaza
+      { id: 'm1-b6', position: [0, -2.0, -61], size: [9, 0.6, 10], theme: 'meadow', rails: 'both' },
     ],
     gems: [
       { id: 'm1-g1', position: [0, 0.9, -7], timeBonusMs: 1000 },
       { id: 'm1-g2', position: [-1.5, -1.1, -24], timeBonusMs: 1000 },
       { id: 'm1-g3', position: [1.5, -1.1, -29], timeBonusMs: 1000 },
+      { id: 'm1-g4', position: [-0.9, -1.1, -50], timeBonusMs: 1000 },
+      { id: 'm1-g5', position: [0.9, -1.1, -53], timeBonusMs: 1000 },
     ],
   },
 
