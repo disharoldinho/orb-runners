@@ -99,11 +99,11 @@ export function BoostPad({
       {/* Side Energy Rails */}
       <mesh position={[-sx / 2 + 0.08, 0.05, 0]}>
         <boxGeometry args={[0.14, 0.06, sz]} />
-        <meshStandardMaterial color={color} emissive={color} emissiveIntensity={0.9} />
+        <meshStandardMaterial color={color} emissive={color} emissiveIntensity={1.8} />
       </mesh>
       <mesh position={[sx / 2 - 0.08, 0.05, 0]}>
         <boxGeometry args={[0.14, 0.06, sz]} />
-        <meshStandardMaterial color={color} emissive={color} emissiveIntensity={0.9} />
+        <meshStandardMaterial color={color} emissive={color} emissiveIntensity={1.8} />
       </mesh>
 
       {/* Scrolling Trackmania Turbo Chevrons */}
@@ -115,7 +115,7 @@ export function BoostPad({
               <meshStandardMaterial
                 color={color}
                 emissive={color}
-                emissiveIntensity={1.1}
+                emissiveIntensity={2.4}
               />
             </mesh>
             <mesh position={[0.45, 0, 0]} rotation={[0, -0.55, 0]}>
@@ -123,7 +123,7 @@ export function BoostPad({
               <meshStandardMaterial
                 color={color}
                 emissive={color}
-                emissiveIntensity={1.1}
+                emissiveIntensity={2.4}
               />
             </mesh>
           </group>

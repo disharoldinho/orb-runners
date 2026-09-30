@@ -1,13 +1,21 @@
-import { useEffect, useRef } from 'react';
+import { useEffect, useMemo, useRef } from 'react';
 import { useFrame } from '@react-three/fiber';
-import { BallCollider, RapierRigidBody, RigidBody } from '@react-three/rapier';
+import { BallCollider, RapierRigidBody, RigidBody, useRapier } from '@react-three/rapier';
 import * as THREE from 'three';
 import { livePhysics, useGameStore } from '../../store/useGameStore';
 import { OrbShellStyle } from '../../types/avatar';
+import { GRAPHICS_PRESETS } from '../../graphics/quality';
 import { CharacterModel } from './CharacterModel';
 import { spawnParticleBurst, spawnShockwave } from './ParticleFX';
 
 export const ORB_RADIUS = 0.56;
+
+/** Contact shadow fades out completely once the orb is this high above the ground (m). */
+const CONTACT_SHADOW_FADE_HEIGHT = 5;
+const CONTACT_SHADOW_BASE_OPACITY = [0.32, 0.16, 0.18];
+/** Post-FX blends transparency in linear HDR, which makes the dark blob read lighter. */
+const CONTACT_SHADOW_POSTFX_BOOST = 1.7;
+const DISC_NORMAL = new THREE.Vector3(0, 0, 1);
 
 function lerpAngle(current: number, target: number, t: number): number {
   const diff = THREE.MathUtils.euclideanModulo(target - current + Math.PI, Math.PI * 2) - Math.PI;
@@ -125,6 +133,15 @@ export function PlayerOrb({ spawnPosition, killPlaneY }: PlayerOrbProps) {
   const characterGroupRef = useRef<THREE.Group>(null);
   const shadowGroupRef = useRef<THREE.Group>(null);
   const orbLightRef = useRef<THREE.PointLight>(null);
+  const shadowMatRefs = useRef<(THREE.MeshBasicMaterial | null)[]>([]);
+
+  // Read-only downward ray query used purely to place the visual contact shadow.
+  const { world, rapier } = useRapier();
+  const shadowRay = useMemo(
+    () => new rapier.Ray({ x: 0, y: 0, z: 0 }, { x: 0, y: -1, z: 0 }),
+    [rapier]
+  );
+  const groundNormal = useMemo(() => new THREE.Vector3(), []);
 
   const avatar = useGameStore((s) => s.avatar);
   const playPhase = useGameStore((s) => s.playPhase);
@@ -133,6 +150,7 @@ export function PlayerOrb({ spawnPosition, killPlaneY }: PlayerOrbProps) {
   const activeSpawnPosition = useGameStore((s) => s.activeSpawnPosition);
   const activeSpawnYaw = useGameStore((s) => s.activeSpawnYaw);
   const triggerFallout = useGameStore((s) => s.triggerFallout);
+  const postFX = useGameStore((s) => GRAPHICS_PRESETS[s.graphicsQuality].postFX);
 
   const charYaw = useRef((livePhysics.cameraYaw ?? 0) + Math.PI);
 
@@ -237,9 +255,37 @@ export function PlayerOrb({ spawnPosition, killPlaneY }: PlayerOrbProps) {
       );
     }
 
-    // Softened multi-ring ground contact shadow & dynamic bounce point light
-    if (shadowGroupRef.current) {
-      shadowGroupRef.current.position.set(pos.x, pos.y - ORB_RADIUS + 0.015, pos.z);
+    // Contact shadow projected onto the ground below the orb: aligned to the
+    // surface normal (ramps), spreading and fading with height while airborne.
+    const shadowGroup = shadowGroupRef.current;
+    if (shadowGroup) {
+      shadowRay.origin = { x: pos.x, y: pos.y, z: pos.z };
+      const hit = world.castRayAndGetNormal(
+        shadowRay,
+        ORB_RADIUS + CONTACT_SHADOW_FADE_HEIGHT,
+        true,
+        rapier.QueryFilterFlags.EXCLUDE_SENSORS,
+        undefined,
+        undefined,
+        rb
+      );
+      const height = hit ? Math.max(0, hit.timeOfImpact - ORB_RADIUS) : Infinity;
+      const fade = 1 - THREE.MathUtils.clamp(height / CONTACT_SHADOW_FADE_HEIGHT, 0, 1);
+      shadowGroup.visible = hit !== null && fade > 0.01;
+      if (hit && shadowGroup.visible) {
+        groundNormal.set(hit.normal.x, hit.normal.y, hit.normal.z).normalize();
+        shadowGroup.quaternion.setFromUnitVectors(DISC_NORMAL, groundNormal);
+        shadowGroup.position
+          .set(pos.x, pos.y - hit.timeOfImpact, pos.z)
+          .addScaledVector(groundNormal, 0.015);
+        shadowGroup.scale.setScalar(1 + height * 0.16);
+        shadowMatRefs.current.forEach((mat, i) => {
+          if (mat) {
+            const boost = postFX && i < 2 ? CONTACT_SHADOW_POSTFX_BOOST : 1;
+            mat.opacity = Math.min(1, CONTACT_SHADOW_BASE_OPACITY[i] * boost * fade);
+          }
+        });
+      }
     }
     if (orbLightRef.current) {
       orbLightRef.current.position.set(pos.x, pos.y + 0.2, pos.z);
@@ -282,15 +328,33 @@ export function PlayerOrb({ spawnPosition, killPlaneY }: PlayerOrbProps) {
       <group ref={shadowGroupRef} rotation={[-Math.PI / 2, 0, 0]}>
         <mesh>
           <circleGeometry args={[0.26, 28]} />
-          <meshBasicMaterial color="#000000" transparent opacity={0.32} depthWrite={false} />
+          <meshBasicMaterial
+            ref={(m) => (shadowMatRefs.current[0] = m)}
+            color="#000000"
+            transparent
+            opacity={0.32}
+            depthWrite={false}
+          />
         </mesh>
         <mesh>
           <ringGeometry args={[0.26, 0.44, 28]} />
-          <meshBasicMaterial color="#000000" transparent opacity={0.16} depthWrite={false} />
+          <meshBasicMaterial
+            ref={(m) => (shadowMatRefs.current[1] = m)}
+            color="#000000"
+            transparent
+            opacity={0.16}
+            depthWrite={false}
+          />
         </mesh>
         <mesh>
           <ringGeometry args={[0.44, 0.56, 28]} />
-          <meshBasicMaterial color="#38bdf8" transparent opacity={0.18} depthWrite={false} />
+          <meshBasicMaterial
+            ref={(m) => (shadowMatRefs.current[2] = m)}
+            color="#38bdf8"
+            transparent
+            opacity={0.18}
+            depthWrite={false}
+          />
         </mesh>
       </group>
     </>
