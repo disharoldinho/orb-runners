@@ -1,7 +1,18 @@
 import { useEffect, useRef } from 'react';
 import { useFrame, useThree } from '@react-three/fiber';
+import { useRapier } from '@react-three/rapier';
 import * as THREE from 'three';
 import { livePhysics, useGameStore } from '../../store/useGameStore';
+
+// Chase-camera framing. Pulled back ~27% and raised slightly (was 7.1m @ 0.38rad) so more of
+// the track ahead is visible; the wall probe below keeps it from clipping into geometry.
+const CAM_DIST = 9.0;
+const CAM_ELEVATION = 0.46;
+const CAM_LOOK_AHEAD = 1.9;
+/** Closest the wall probe may pull the camera to the orb. */
+const CAM_MIN_DIST = 2.4;
+/** Gap kept between the camera and the wall it would otherwise clip. */
+const CAM_WALL_MARGIN = 0.45;
 
 /** Shortest-path angle delta in [-PI, PI] */
 function angleDelta(current: number, target: number): number {
@@ -33,6 +44,10 @@ function smoothDampAngle(
 
 export function MonkeyCamera() {
   const { camera } = useThree();
+  const { world, rapier } = useRapier();
+  const wallProbeRay = useRef<InstanceType<typeof rapier.Ray> | null>(null);
+  /** Current (smoothed) fraction of the desired distance allowed by the wall probe. */
+  const wallDistFactor = useRef(1);
   const playPhase = useGameStore((s) => s.playPhase);
   const runAttemptId = useGameStore((s) => s.runAttemptId);
   const checkpointRespawnTick = useGameStore((s) => s.checkpointRespawnTick);
@@ -56,9 +71,9 @@ export function MonkeyCamera() {
 
     smoothedPivot.current.set(bx, by + 0.35, bz);
     smoothedCamPos.current.set(
-      bx + Math.sin(yaw) * 8.5,
-      by + 4.8,
-      bz + Math.cos(yaw) * 8.5
+      bx + Math.sin(yaw) * CAM_DIST * Math.cos(CAM_ELEVATION),
+      by + 0.38 + CAM_DIST * Math.sin(CAM_ELEVATION),
+      bz + Math.cos(yaw) * CAM_DIST * Math.cos(CAM_ELEVATION)
     );
     smoothedLookAt.current.set(
       bx - Math.sin(yaw) * 1.5,
@@ -115,13 +130,13 @@ export function MonkeyCamera() {
 
     if (playPhase === 'goal') {
       goalOrbitAngle.current += dt * 1.1;
-      const orbitDist = 4.4;
+      const orbitDist = 5.6;
       const targetPivot = new THREE.Vector3(bx, by + 0.25, bz);
       smoothedPivot.current.lerp(targetPivot, 1 - Math.exp(-6 * dt));
 
       const desiredGoalCam = new THREE.Vector3(
         smoothedPivot.current.x + Math.sin(goalOrbitAngle.current) * orbitDist,
-        smoothedPivot.current.y + 1.65,
+        smoothedPivot.current.y + 2.1,
         smoothedPivot.current.z + Math.cos(goalOrbitAngle.current) * orbitDist
       );
 
@@ -183,16 +198,16 @@ export function MonkeyCamera() {
     const pitch = visualPitch.current;
     const roll = visualRoll.current;
 
-    let baseDist = 7.1;
-    let baseElevation = 0.38;
+    let baseDist = CAM_DIST;
+    let baseElevation = CAM_ELEVATION;
     let extraYaw = livePhysics.cameraPeekYaw;
 
     if (playPhase === 'countdown') {
       countdownTimer.current += dt;
       const introProgress = THREE.MathUtils.clamp(countdownTimer.current / 1.15, 0, 1);
       const ease = 1 - Math.pow(1 - introProgress, 3);
-      baseDist = THREE.MathUtils.lerp(9.8, 7.1, ease);
-      baseElevation = THREE.MathUtils.lerp(0.65, 0.38, ease);
+      baseDist = THREE.MathUtils.lerp(CAM_DIST * 1.38, CAM_DIST, ease);
+      baseElevation = THREE.MathUtils.lerp(0.72, CAM_ELEVATION, ease);
       extraYaw += THREE.MathUtils.lerp(0.35, 0, ease);
     }
 
@@ -216,10 +231,50 @@ export function MonkeyCamera() {
     const worldOffsetX = localOffsetX * cosYaw + localOffsetZ * sinYaw;
     const worldOffsetZ = -localOffsetX * sinYaw + localOffsetZ * cosYaw;
 
+    // Wall probe: cast from the orb towards the desired camera spot against static geometry
+    // only (no sensors, orb or moving obstacles) and pull the camera in front of any wall.
+    // Pull-in is fast, easing back out is slow, so it never pumps.
+    const probeLift = 0.25;
+    const probeLen = Math.hypot(worldOffsetX, localOffsetY - probeLift, worldOffsetZ) || 1;
+    let allowedFactor = 1;
+    if (!wallProbeRay.current) {
+      wallProbeRay.current = new rapier.Ray({ x: 0, y: 0, z: 0 }, { x: 0, y: 1, z: 0 });
+    }
+    const probe = wallProbeRay.current;
+    probe.origin = {
+      x: smoothedPivot.current.x,
+      y: smoothedPivot.current.y + probeLift,
+      z: smoothedPivot.current.z,
+    };
+    probe.dir = {
+      x: worldOffsetX / probeLen,
+      y: (localOffsetY - probeLift) / probeLen,
+      z: worldOffsetZ / probeLen,
+    };
+    const hit = world.castRay(
+      probe,
+      probeLen,
+      true,
+      rapier.QueryFilterFlags.EXCLUDE_SENSORS |
+        rapier.QueryFilterFlags.EXCLUDE_DYNAMIC |
+        rapier.QueryFilterFlags.EXCLUDE_KINEMATIC
+    );
+    if (hit) {
+      const safe = Math.max(CAM_MIN_DIST, hit.timeOfImpact - CAM_WALL_MARGIN);
+      allowedFactor = Math.min(1, safe / probeLen);
+    }
+    const factorRate = allowedFactor < wallDistFactor.current ? 18 : 2.5;
+    wallDistFactor.current = THREE.MathUtils.lerp(
+      wallDistFactor.current,
+      allowedFactor,
+      1 - Math.exp(-factorRate * dt)
+    );
+    const k = wallDistFactor.current;
+
     const desiredCamPos = new THREE.Vector3(
-      smoothedPivot.current.x + worldOffsetX,
-      smoothedPivot.current.y + localOffsetY,
-      smoothedPivot.current.z + worldOffsetZ
+      smoothedPivot.current.x + worldOffsetX * k,
+      smoothedPivot.current.y + localOffsetY * k,
+      smoothedPivot.current.z + worldOffsetZ * k
     );
 
     smoothedCamPos.current.lerp(desiredCamPos, 1 - Math.exp(-12 * dt));
@@ -239,7 +294,7 @@ export function MonkeyCamera() {
     smoothedUp.current.lerp(desiredUp, 1 - Math.exp(-10 * dt)).normalize();
     camera.up.copy(smoothedUp.current);
 
-    const lookAheadDist = 1.45;
+    const lookAheadDist = CAM_LOOK_AHEAD;
     const desiredLookTarget = new THREE.Vector3(
       smoothedPivot.current.x - Math.sin(effectiveYaw) * lookAheadDist,
       smoothedPivot.current.y + 0.12 - Math.sin(pitch) * 0.32,
