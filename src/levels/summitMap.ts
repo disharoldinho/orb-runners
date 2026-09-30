@@ -543,16 +543,21 @@ class RouteBuilder {
       width: W,
       label: `CAMP ${order} (${Math.round(this.F)}M) • ${nextStageName}`,
     });
-    // Decorative camp banners outside the rails
+    // Camp gateway landmark: banners in the colours of the stage that starts here, joined
+    // by a decorative arch high over the road (no collider), so every camp reads from afar.
+    const nextTheme = SUMMIT_PHASES[Math.min(order, SUMMIT_PHASES.length - 1)].theme;
     for (const side of [-1, 1]) {
       this.blocks.push({
         id: this.id('banner'),
         position: this.at(len / 2, side * (W / 2 + 0.9), r2(this.F + 3.0)),
         size: [1.2, 6.0, 1.2],
         rotation,
-        theme: 'gold',
+        theme: nextTheme,
       });
+      this.decor(this.at(len / 2, side * (W / 2 + 0.9), r2(this.F + 6.35)), [1.5, 0.7, 1.5], 'gold', rotation);
     }
+    this.decor(this.at(len / 2, 0, r2(this.F + 7.0)), [r2(W + 3.2), 0.8, 1.1], nextTheme, rotation);
+    this.decor(this.at(len / 2, 0, r2(this.F + 7.9)), [1.4, 1.0, 1.4], 'gold', rot(this.h, 0, 0.785));
     this.wpAlong(len, () => this.F);
     this.advance(len);
   }
@@ -627,7 +632,14 @@ function buildSummitLevel() {
       b.flat(terraceLen);
     });
 
-  b.atom(20, () => b.flat(20, { id: 'sum-base-plaza', theme: 'gold' }));
+  b.atom(20, () => {
+    // Base-camp start gateway (decorative): the climb begins under a golden arch.
+    for (const side of [-1, 1]) {
+      b.decor(b.at(12, side * (b.W / 2 + 0.9), 3.4), [1.2, 6.8, 1.2], 'gold', rot(b.h));
+    }
+    b.decor(b.at(12, 0, 7.2), [r2(b.W + 3.2), 0.9, 1.2], 'meadow', rot(b.h));
+    b.flat(20, { id: 'sum-base-plaza', theme: 'gold' });
+  });
   b.climb(5);
   b.flat(6);
   b.gem(3);
@@ -1074,6 +1086,28 @@ function buildSummitLevel() {
         theme: 'gold',
       });
     }
+    // Celestial Crown set-piece (decorative): a floating golden crown over the goal,
+    // visible from the whole upper mountain.
+    const g = b.at(-6, 0, r2(b.F + 10.5));
+    for (let k = 0; k < 8; k++) {
+      const th = (k / 8) * Math.PI * 2;
+      b.blocks.push({
+        id: b.id('crown-spike'),
+        position: [r2(g[0] + Math.cos(th) * 3.6), r2(g[1] + (k % 2 ? 0.6 : 0)), r2(g[2] + Math.sin(th) * 3.6)],
+        size: [1.3, k % 2 ? 3.2 : 2.2, 0.35],
+        rotation: [0, r4(-th + Math.PI / 2), 0],
+        theme: 'gold',
+        decorative: true,
+      });
+    }
+    b.blocks.push({
+      id: b.id('crown-jewel'),
+      position: [g[0], r2(g[1] + 0.4), g[2]],
+      size: [1.8, 1.8, 1.8],
+      rotation: [0.6155, 0.7854, 0],
+      theme: 'crystal',
+      decorative: true,
+    });
     // Back wall so nobody rolls off the top of the world.
     b.blocks.push({
       id: 'sum-crown-backwall',
@@ -1130,11 +1164,14 @@ function buildSummitLevel() {
       ? Math.min(...next.map((p) => p.F)) - 2
       : Math.max(...loop.map((p) => p.F)) + 4;
     if (maxX - minX > 4 && maxZ - minZ > 4 && top > prevTop + 2) {
-      b.decor(
-        [r2((minX + maxX) / 2), r2((prevTop + top) / 2), r2((minZ + maxZ) / 2)],
-        [r2(maxX - minX), r2(top - prevTop), r2(maxZ - minZ)],
-        coreTheme(top),
-      );
+      b.blocks.push({
+        id: `sum-core-${j / 4}`,
+        position: [r2((minX + maxX) / 2), r2((prevTop + top) / 2), r2((minZ + maxZ) / 2)],
+        size: [r2(maxX - minX), r2(top - prevTop), r2(maxZ - minZ)],
+        rotation: [0, 0, 0],
+        theme: coreTheme(top),
+        decorative: true,
+      });
       prevTop = top;
     }
   }
