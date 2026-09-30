@@ -135,11 +135,11 @@ export function SummitLobbyModal() {
 
           <div className="summit-lobby-title-group">
             <span className="summit-badge-pill">
-              <Mountain size={14} /> 5-PHASE • 25-STAGE MEGA-CLIMB
+              <Mountain size={14} /> 9 STAGES • ONE CONTINUOUS CLIMB
             </span>
             <h1>REACH THE SUMMIT</h1>
             <p>
-              Ascend 25 interconnected stages across 5 themed biomes from{' '}
+              Spiral up 9 themed stages, each with its own challenge, from{' '}
               <strong>0m Base Camp</strong> to the <strong>250m Celestial Golden Crown</strong> with
               live players!
             </p>
@@ -223,12 +223,12 @@ export function SummitLobbyModal() {
               <div className="summit-public-info">
                 <h3>🌐 Global Public Summit Server</h3>
                 <p>
-                  Jump straight into the open 25-stage vertical climb alongside everyone on the
+                  Jump straight into the open 9-stage mountain climb alongside everyone on the
                   public server plus 5 animated AI Climber Bots. No password required!
                 </p>
                 <div className="summit-feature-chips">
-                  <span>🏔️ 25 Continuous Stages</span>
-                  <span>🏕️ 5 Biome Base Camps</span>
+                  <span>🏔️ 9 Themed Stages</span>
+                  <span>🏕️ 8 Base Camps</span>
                   <span>💬 Live 3D Emotes (Keys 1-4)</span>
                 </div>
               </div>

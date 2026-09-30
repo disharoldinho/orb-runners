@@ -203,6 +203,15 @@ function LocalPlayerEmoteBillboard() {
   );
 }
 
+/** Cumulative route distance per bot waypoint (offline fallback bots move in m/s). */
+const FALLBACK_ROUTE_DIST: number[] = SUMMIT_BOT_WAYPOINTS.reduce<number[]>((acc, p, i, arr) => {
+  if (i === 0) return [0];
+  const q = arr[i - 1];
+  acc.push(acc[i - 1] + Math.hypot(p[0] - q[0], p[1] - q[1], p[2] - q[2]));
+  return acc;
+}, []);
+const FALLBACK_ROUTE_LENGTH = FALLBACK_ROUTE_DIST[FALLBACK_ROUTE_DIST.length - 1];
+
 export function SummitMultiplayer() {
   const currentLevelId = useGameStore((s) => s.currentLevelId);
   const summitLobby = useGameStore((s) => s.summitLobby);
@@ -232,19 +241,27 @@ export function SummitMultiplayer() {
       const startTime = performance.now() / 1000;
       fallbackInterval = setInterval(() => {
         const elapsed = performance.now() / 1000 - startTime;
-        const totalSegs = SUMMIT_BOT_WAYPOINTS.length - 1;
         const bots: RemoteClimberState[] = FALLBACK_BOTS.map((bot, idx) => {
-          const speed = 0.26 + idx * 0.05;
-          const phase = idx * 0.22;
-          const prog = ((elapsed * speed * 0.045 + phase) % 1.0) * totalSegs;
-          const segIdx = Math.min(totalSegs - 1, Math.floor(prog));
-          const frac = prog - segIdx;
+          // Walk the real route at ~4.5-6 m/s, rest at the summit, then loop.
+          const metersPerSec = 4.5 + idx * 0.6;
+          const cycleSec = FALLBACK_ROUTE_LENGTH / metersPerSec + 12;
+          const t = (elapsed + idx * 0.22 * cycleSec) % cycleSec;
+          const dist = Math.min(FALLBACK_ROUTE_LENGTH, t * metersPerSec);
+          let segIdx = 0;
+          while (
+            segIdx < FALLBACK_ROUTE_DIST.length - 2 &&
+            FALLBACK_ROUTE_DIST[segIdx + 1] <= dist
+          ) {
+            segIdx++;
+          }
+          const segLen = FALLBACK_ROUTE_DIST[segIdx + 1] - FALLBACK_ROUTE_DIST[segIdx] || 1;
+          const frac = Math.min(1, (dist - FALLBACK_ROUTE_DIST[segIdx]) / segLen);
           const p0 = SUMMIT_BOT_WAYPOINTS[segIdx];
           const p1 = SUMMIT_BOT_WAYPOINTS[segIdx + 1];
-          const arcY = Math.sin(frac * Math.PI) * 1.75;
-          const x = p0[0] + (p1[0] - p0[0]) * frac + Math.sin(elapsed * 1.5 + idx) * 0.65;
-          const y = p0[1] + (p1[1] - p0[1]) * frac + arcY;
-          const z = p0[2] + (p1[2] - p0[2]) * frac + Math.cos(elapsed * 1.4 + idx) * 0.65;
+          const bobY = Math.abs(Math.sin(elapsed * 2.2 + idx)) * 0.25;
+          const x = p0[0] + (p1[0] - p0[0]) * frac + Math.sin(elapsed * 1.5 + idx) * 0.45;
+          const y = p0[1] + (p1[1] - p0[1]) * frac + bobY;
+          const z = p0[2] + (p1[2] - p0[2]) * frac + Math.cos(elapsed * 1.4 + idx) * 0.45;
           const yaw = Math.atan2(p1[0] - p0[0], p1[2] - p0[2]);
           const altitudeM = Math.max(0, Math.round(y - 1.0));
           return {
@@ -252,7 +269,7 @@ export function SummitMultiplayer() {
             position: [x, y, z],
             yaw,
             altitudeM,
-            peakAltitudeM: Math.max(altitudeM, altitudeM + 15),
+            peakAltitudeM: altitudeM,
             emote: Math.floor(elapsed + idx * 5) % 18 < 2 ? '👋' : null,
           };
         });
