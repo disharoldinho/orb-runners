@@ -1,6 +1,7 @@
 import { useEffect, useRef } from 'react';
 import { MAPS } from '../../levels/maps';
 import { useGameStore } from '../../store/useGameStore';
+import { useUiStore } from '../../store/useUiStore';
 
 /**
  * Global Gamepad / Controller listener that runs at 60fps across all screens
@@ -82,6 +83,11 @@ export function GamepadManager() {
             // Back / Select (8): Return to Stage Select Menu
             if (justPressed(8)) {
               state.setScreen('menu');
+            }
+
+            // Start (9): open / close the run menu sheet
+            if (justPressed(9) && state.playPhase !== 'goal') {
+              useUiStore.getState().toggleMenu();
             }
           }
 

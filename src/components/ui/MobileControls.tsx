@@ -1,13 +1,8 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { Crosshair, Flag, Home, LogOut, RotateCcw, Smartphone, X } from 'lucide-react';
 import { getLevelById, useGameStore } from '../../store/useGameStore';
-import {
-  disableGyro,
-  enableGyro,
-  gyroSupported,
-  recalibrateGyro,
-  touchInput,
-} from '../../input/touchInput';
+import { useUiStore } from '../../store/useUiStore';
+import { touchInput } from '../../input/touchInput';
+import { Icon } from './icons';
 
 /** Max knob travel in px; full deflection = full board tilt (MAX_TILT_RAD). */
 const STICK_RADIUS = 52;
@@ -92,25 +87,32 @@ function VirtualJoystick() {
       <div ref={baseRef} className={`joystick-base ${active ? 'active' : ''}`}>
         <div ref={knobRef} className="joystick-knob" />
       </div>
+      {!active && <span className="joystick-hint">Drag to tilt</span>}
     </div>
   );
 }
 
-/** On-screen controls for touch devices, shown only while playing. */
+/**
+ * On-screen controls for touch devices, shown only while playing.
+ * Deliberately minimal: a floating stick on the left, one big retry/respawn
+ * button on the right (plus a small full-restart once a checkpoint is banked).
+ * Exit, tilt steering, sound, ghost and graphics live in the run menu sheet.
+ */
 export function MobileControls() {
   const startRun = useGameStore((s) => s.startRun);
   const respawnAtCheckpoint = useGameStore((s) => s.respawnAtCheckpoint);
   const crossedCheckpoints = useGameStore((s) => s.crossedCheckpoints.length);
   const playPhase = useGameStore((s) => s.playPhase);
-  const exitToMenu = useGameStore((s) => s.exitToMenu);
   const currentLevelId = useGameStore((s) => s.currentLevelId);
   const isSummit = Boolean(getLevelById(currentLevelId).isSummitMode);
+  const gyroOn = useUiStore((s) => s.gyroOn);
+  const recalibrate = useUiStore((s) => s.recalibrate);
+  const toast = useUiStore((s) => s.toast);
+  const menuOpen = useUiStore((s) => s.menuOpen);
+  const resetGyro = useUiStore((s) => s.resetGyro);
 
-  const [gyroOn, setGyroOn] = useState(false);
-  const [toast, setToast] = useState<string | null>(null);
   const [isPortrait, setIsPortrait] = useState(false);
-  const [hideRotateHint, setHideRotateHint] = useState(false);
-  const [exitArmed, setExitArmed] = useState(false);
+  const [showRotateHint, setShowRotateHint] = useState(true);
 
   useEffect(() => {
     const mq = window.matchMedia('(orientation: portrait)');
@@ -120,8 +122,14 @@ export function MobileControls() {
     return () => mq.removeEventListener('change', sync);
   }, []);
 
+  // The rotate suggestion is a one-off nudge, not a permanent banner.
+  useEffect(() => {
+    const id = window.setTimeout(() => setShowRotateHint(false), 6000);
+    return () => window.clearTimeout(id);
+  }, []);
+
   // Turn the gyro listener off when leaving the stage.
-  useEffect(() => () => disableGyro(), []);
+  useEffect(() => () => resetGyro(), [resetGyro]);
 
   // iOS Safari ignores user-scalable=no for pinch; block its gesture events during play.
   useEffect(() => {
@@ -130,121 +138,51 @@ export function MobileControls() {
     return () => document.removeEventListener('gesturestart', prevent);
   }, []);
 
-  useEffect(() => {
-    if (!toast) return;
-    const id = window.setTimeout(() => setToast(null), 2600);
-    return () => window.clearTimeout(id);
-  }, [toast]);
-
-  const toggleGyro = async () => {
-    if (gyroOn) {
-      disableGyro();
-      setGyroOn(false);
-      setToast('Tilt steering off');
-      return;
-    }
-    const result = await enableGyro(); // called directly from the tap (iOS permission)
-    if (result.ok) {
-      setGyroOn(true);
-      setToast('Tilt steering on: current angle set as level');
-    } else {
-      setToast(result.reason);
-    }
-  };
-
-  // Two-tap confirm so a stray thumb doesn't end the run: first tap arms, second leaves.
-  useEffect(() => {
-    if (!exitArmed) return;
-    const id = window.setTimeout(() => setExitArmed(false), 3000);
-    return () => window.clearTimeout(id);
-  }, [exitArmed]);
-
-  const onExitTap = () => {
-    if (!exitArmed) {
-      setExitArmed(true);
-      setToast(
-        isSummit
-          ? 'Tap Leave again to exit the Summit lobby'
-          : 'Tap Menu again to return to the main menu',
-      );
-      return;
-    }
-    setExitArmed(false);
-    exitToMenu();
-  };
-
-  const recalibrate = () => {
-    recalibrateGyro();
-    setToast('Level recalibrated');
-  };
-
   if (playPhase === 'goal') return null;
 
+  const banked = crossedCheckpoints > 0;
+
   return (
-    <div className="mobile-controls">
+    <div className={`touch-controls ${menuOpen ? 'is-hidden' : ''}`}>
       <VirtualJoystick />
 
-      <div className="mobile-action-cluster">
-        <div className="mobile-gyro-row">
+      <div className="touch-cluster">
+        {gyroOn && (
           <button
-            className={`mobile-btn small exit ${exitArmed ? 'armed' : ''}`}
-            onClick={onExitTap}
-            aria-label={
-              isSummit ? 'Leave Summit lobby and return to main menu' : 'Return to main menu'
-            }
-            data-testid="mobile-exit"
+            className="touch-btn small"
+            onClick={recalibrate}
+            aria-label="Recalibrate tilt level"
           >
-            {isSummit ? <LogOut size={18} /> : <Home size={18} />}
-            <span>{exitArmed ? (isSummit ? 'Leave?' : 'Menu?') : isSummit ? 'Leave' : 'Menu'}</span>
+            <Icon name="level" size={20} />
           </button>
-          {gyroSupported() && gyroOn && (
-            <button
-              className="mobile-btn small"
-              onClick={recalibrate}
-              aria-label="Recalibrate tilt"
-            >
-              <Crosshair size={18} />
-              <span>Level</span>
-            </button>
-          )}
-          {gyroSupported() && (
-            <button
-              className={`mobile-btn small ${gyroOn ? 'on' : ''}`}
-              onClick={toggleGyro}
-              aria-pressed={gyroOn}
-              aria-label="Toggle tilt steering"
-            >
-              <Smartphone size={18} />
-              <span>Tilt {gyroOn ? 'On' : 'Off'}</span>
-            </button>
-          )}
-        </div>
-        <div className="mobile-main-row">
-          <button className="mobile-btn" onClick={startRun} aria-label="Reset stage">
-            <RotateCcw size={22} />
-            <span>Reset</span>
-          </button>
+        )}
+        {banked && (
           <button
-            className="mobile-btn primary"
-            onClick={respawnAtCheckpoint}
-            aria-label="Respawn at checkpoint"
+            className="touch-btn small"
+            onClick={startRun}
+            aria-label={isSummit ? 'Restart climb from the bottom' : 'Restart stage'}
           >
-            <Flag size={22} />
-            <span>{crossedCheckpoints > 0 ? 'Respawn' : 'Restart'}</span>
+            <Icon name="restart" size={20} />
           </button>
-        </div>
+        )}
+        <button
+          className="touch-btn big"
+          onClick={respawnAtCheckpoint}
+          aria-label={banked ? 'Respawn at last checkpoint' : 'Retry from start'}
+          data-testid="touch-respawn"
+        >
+          <Icon name={banked ? 'flag' : 'restart'} size={30} />
+          <span>{banked ? (isSummit ? 'Camp' : 'Respawn') : 'Retry'}</span>
+        </button>
       </div>
 
-      {toast && <div className="mobile-toast">{toast}</div>}
+      {toast && <div className="touch-toast">{toast}</div>}
 
-      {isPortrait && !hideRotateHint && (
-        <div className="rotate-hint">
-          <Smartphone size={16} className="rotate-hint-icon" />
-          <span>Rotate to landscape for a wider view</span>
-          <button onClick={() => setHideRotateHint(true)} aria-label="Dismiss">
-            <X size={16} />
-          </button>
-        </div>
+      {isPortrait && showRotateHint && (
+        <button className="rotate-hint" onClick={() => setShowRotateHint(false)}>
+          <Icon name="rotate" size={18} />
+          <span>Landscape gives a wider view</span>
+        </button>
       )}
     </div>
   );

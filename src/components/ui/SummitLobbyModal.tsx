@@ -1,20 +1,7 @@
 import { useState } from 'react';
-import {
-  ArrowLeft,
-  Bot,
-  Check,
-  Copy,
-  Globe,
-  KeyRound,
-  Lock,
-  Mountain,
-  PlusCircle,
-  RefreshCw,
-  ShieldAlert,
-  Sparkles,
-  Users,
-} from 'lucide-react';
 import { useGameStore } from '../../store/useGameStore';
+import { SummitPoster } from './brand';
+import { Icon } from './icons';
 
 function generateRandomCode(): string {
   const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
@@ -34,25 +21,29 @@ export function SummitLobbyModal() {
   const setScreen = useGameStore((s) => s.setScreen);
 
   const [activeTab, setActiveTab] = useState<'public' | 'create' | 'join'>(
-    summitLobby.mode === 'private' ? (summitLobby.action === 'create' ? 'create' : 'join') : 'public'
+    summitLobby.mode === 'private'
+      ? summitLobby.action === 'create'
+        ? 'create'
+        : 'join'
+      : 'public',
   );
 
   const [climberName, setClimberName] = useState(avatar.name || 'Pip');
   const [createCode, setCreateCode] = useState(() =>
     summitLobby.lobbyCode && summitLobby.lobbyCode !== 'PUBLIC'
       ? summitLobby.lobbyCode
-      : generateRandomCode()
+      : generateRandomCode(),
   );
   const [createLobbyName, setCreateLobbyName] = useState(
     summitLobby.lobbyName && summitLobby.lobbyName !== 'Global Summit Server'
       ? summitLobby.lobbyName
-      : `${avatar.name || 'Pip'}'s Summit Room`
+      : `${avatar.name || 'Pip'}'s Summit Room`,
   );
   const [createPassword, setCreatePassword] = useState(summitLobby.password || '');
   const [includeBots, setIncludeBots] = useState(summitLobby.includeBots);
 
   const [joinCode, setJoinCode] = useState(
-    summitLobby.lobbyCode && summitLobby.lobbyCode !== 'PUBLIC' ? summitLobby.lobbyCode : ''
+    summitLobby.lobbyCode && summitLobby.lobbyCode !== 'PUBLIC' ? summitLobby.lobbyCode : '',
   );
   const [joinPassword, setJoinPassword] = useState(summitLobby.password || '');
   const [localError, setLocalError] = useState<string | null>(null);
@@ -80,7 +71,10 @@ export function SummitLobbyModal() {
 
   const handleCreatePrivate = () => {
     saveNameIfChanged();
-    const cleanCode = createCode.trim().toUpperCase().replace(/[^A-Z0-9-]/g, '');
+    const cleanCode = createCode
+      .trim()
+      .toUpperCase()
+      .replace(/[^A-Z0-9-]/g, '');
     if (cleanCode.length < 3) {
       setLocalError('Please enter a Lobby Code of at least 3 characters.');
       return;
@@ -123,262 +117,222 @@ export function SummitLobbyModal() {
 
   const displayedError = localError || summitLobby.errorMessage;
 
+  const TABS = [
+    { id: 'public' as const, icon: 'globe' as const, label: 'Public' },
+    { id: 'create' as const, icon: 'plus' as const, label: 'Create' },
+    { id: 'join' as const, icon: 'key' as const, label: 'Join' },
+  ];
+
   return (
-    <div className="summit-lobby-screen">
-      <div className="summit-lobby-card">
-        {/* Top Bar */}
-        <div className="summit-lobby-header">
-          <button className="btn-secondary" onClick={() => setScreen('menu')}>
-            <ArrowLeft size={16} />
-            Back to Menu
-          </button>
+    <div className="lobby-screen paper">
+      <header className="screen-head">
+        <button className="btn btn-paper btn-sm" onClick={() => setScreen('menu')}>
+          <Icon name="arrowLeft" size={18} />
+          <span>Back</span>
+        </button>
+        <h1 className="screen-title">Reach the Summit</h1>
+        <span className="tag tag-sun" title="Your best altitude">
+          <Icon name="crown" size={16} />
+          {summitBestAltitudeM} / 250 m
+        </span>
+      </header>
 
-          <div className="summit-lobby-title-group">
-            <span className="summit-badge-pill">
-              <Mountain size={14} /> 9 STAGES • ONE CONTINUOUS CLIMB
-            </span>
-            <h1>REACH THE SUMMIT</h1>
+      <div className="lobby-layout">
+        <aside className="card lobby-poster">
+          <SummitPoster />
+          <div className="lobby-poster-body">
             <p>
-              Spiral up 9 themed stages, each with its own challenge, from{' '}
-              <strong>0m Base Camp</strong> to the <strong>250m Celestial Golden Crown</strong> with
-              live players!
+              9 themed stages on one spiral road, from the meadow base camp to the golden crown at
+              250 m. Pass the 8 camps in order.
             </p>
+            <label className="field">
+              <span>Climber name</span>
+              <input
+                type="text"
+                maxLength={18}
+                value={climberName}
+                onChange={(e) => setClimberName(e.target.value)}
+                placeholder="Your climber name"
+              />
+            </label>
+            <button
+              className="btn btn-paper btn-sm"
+              onClick={() => {
+                saveNameIfChanged();
+                setScreen('character-creator');
+              }}
+            >
+              <Icon name="sparkle" size={16} />
+              <span>Customise runner</span>
+            </button>
+          </div>
+        </aside>
+
+        <section className="card lobby-panel">
+          <div className="segmented tabs" role="tablist">
+            {TABS.map((t) => (
+              <button
+                key={t.id}
+                role="tab"
+                aria-selected={activeTab === t.id}
+                className={activeTab === t.id ? 'on' : ''}
+                onClick={() => {
+                  setActiveTab(t.id);
+                  setLocalError(null);
+                }}
+              >
+                <Icon name={t.icon} size={16} />
+                {t.label}
+              </button>
+            ))}
           </div>
 
-          <div className="summit-best-record-box">
-            <span>YOUR PEAK ALTITUDE</span>
-            <strong>{summitBestAltitudeM}m / 250m</strong>
-          </div>
-        </div>
+          {displayedError && (
+            <div className="error-sticker">
+              <Icon name="alert" size={18} />
+              <span>{displayedError}</span>
+            </div>
+          )}
 
-        {/* Climber Display Name Bar */}
-        <div className="summit-climber-profile-row">
-          <div className="summit-profile-input-wrap">
-            <label>CLIMBER DISPLAY NAME</label>
-            <input
-              type="text"
-              maxLength={18}
-              value={climberName}
-              onChange={(e) => setClimberName(e.target.value)}
-              placeholder="Enter your climber name..."
-            />
-          </div>
-          <button
-            className="btn-secondary"
-            onClick={() => {
-              saveNameIfChanged();
-              setScreen('character-creator');
-            }}
-          >
-            <Sparkles size={16} />
-            Customize 3D Orb ({avatar.bodyType})
-          </button>
-        </div>
-
-        {displayedError && (
-          <div className="summit-error-banner">
-            <ShieldAlert size={18} />
-            <span>{displayedError}</span>
-          </div>
-        )}
-
-        {/* Mode Tabs */}
-        <div className="summit-lobby-tabs">
-          <button
-            className={`summit-tab-btn ${activeTab === 'public' ? 'active' : ''}`}
-            onClick={() => {
-              setActiveTab('public');
-              setLocalError(null);
-            }}
-          >
-            <Globe size={17} />
-            Public Server
-          </button>
-          <button
-            className={`summit-tab-btn ${activeTab === 'create' ? 'active' : ''}`}
-            onClick={() => {
-              setActiveTab('create');
-              setLocalError(null);
-            }}
-          >
-            <PlusCircle size={17} />
-            Create Private Lobby
-          </button>
-          <button
-            className={`summit-tab-btn ${activeTab === 'join' ? 'active' : ''}`}
-            onClick={() => {
-              setActiveTab('join');
-              setLocalError(null);
-            }}
-          >
-            <KeyRound size={17} />
-            Join Private Lobby
-          </button>
-        </div>
-
-        {/* Tab Body */}
-        {activeTab === 'public' && (
-          <div className="summit-tab-panel">
-            <div className="summit-public-hero">
-              <div className="summit-public-info">
-                <h3>🌐 Global Public Summit Server</h3>
-                <p>
-                  Jump straight into the open 9-stage mountain climb alongside everyone on the
-                  public server plus 5 animated AI Climber Bots. No password required!
-                </p>
-                <div className="summit-feature-chips">
-                  <span>🏔️ 9 Themed Stages</span>
-                  <span>🏕️ 8 Base Camps</span>
-                  <span>💬 Live 3D Emotes (Keys 1-4)</span>
-                </div>
-              </div>
-              <button className="btn-summit-launch" onClick={handleLaunchPublic}>
-                <Mountain size={20} />
-                JOIN PUBLIC SUMMIT
+          {activeTab === 'public' && (
+            <div className="lobby-tab">
+              <h3>Global public server</h3>
+              <p>Jump straight in with everyone online plus 5 bot climbers. No code needed.</p>
+              <ul className="facts">
+                <li>
+                  <Icon name="mountain" size={16} /> 9 stages
+                </li>
+                <li>
+                  <Icon name="tent" size={16} /> 8 base camps
+                </li>
+                <li>
+                  <Icon name="wave" size={16} /> Live emotes
+                </li>
+              </ul>
+              <button className="btn btn-go btn-lg" onClick={handleLaunchPublic}>
+                <Icon name="mountain" size={20} />
+                <span>Join public climb</span>
               </button>
             </div>
-          </div>
-        )}
+          )}
 
-        {activeTab === 'create' && (
-          <div className="summit-tab-panel">
-            <div className="summit-form-grid">
-              <div className="summit-field">
-                <label>LOBBY CODE (SHARE WITH FRIENDS)</label>
-                <div className="summit-code-input-row">
+          {activeTab === 'create' && (
+            <div className="lobby-tab">
+              <label className="field">
+                <span>Lobby code (share it)</span>
+                <div className="field-row">
                   <input
                     type="text"
                     maxLength={10}
                     value={createCode}
                     onChange={(e) => setCreateCode(e.target.value.toUpperCase())}
-                    className="summit-code-input"
+                    className="code-input"
                   />
                   <button
                     type="button"
-                    className="btn-secondary"
+                    className="icon-btn"
                     onClick={() => setCreateCode(generateRandomCode())}
-                    title="Generate New Code"
+                    title="Generate new code"
+                    aria-label="Generate new code"
                   >
-                    <RefreshCw size={15} />
+                    <Icon name="refresh" size={18} />
                   </button>
-                  <button
-                    type="button"
-                    className="btn-secondary"
-                    onClick={handleCopyInvite}
-                    title="Copy Lobby Code & Password Invite"
-                  >
-                    {copiedInvite ? <Check size={15} /> : <Copy size={15} />}
-                    {copiedInvite ? 'Copied!' : 'Copy Invite'}
+                  <button type="button" className="btn btn-paper btn-sm" onClick={handleCopyInvite}>
+                    <Icon name={copiedInvite ? 'check' : 'copy'} size={16} />
+                    <span>{copiedInvite ? 'Copied' : 'Invite'}</span>
                   </button>
                 </div>
-              </div>
-
-              <div className="summit-field">
-                <label>
-                  <Lock size={13} /> LOBBY PASSWORD (OPTIONAL)
-                </label>
+              </label>
+              <label className="field">
+                <span>
+                  <Icon name="lock" size={13} /> Password (optional)
+                </span>
                 <input
                   type="text"
                   maxLength={24}
                   value={createPassword}
                   onChange={(e) => setCreatePassword(e.target.value)}
-                  placeholder="Leave blank for open code, or set a secret password..."
+                  placeholder="Leave blank for code-only"
                 />
-              </div>
-
-              <div className="summit-field">
-                <label>PRIVATE LOBBY NAME</label>
+              </label>
+              <label className="field">
+                <span>Lobby name</span>
                 <input
                   type="text"
                   maxLength={28}
                   value={createLobbyName}
                   onChange={(e) => setCreateLobbyName(e.target.value)}
-                  placeholder="e.g. Friday Night Summit Race"
+                  placeholder="e.g. Friday night summit race"
                 />
-              </div>
-
-              <div className="summit-field">
-                <label>AI CLIMBER BOTS IN LOBBY</label>
-                <button
-                  type="button"
-                  className={`summit-bot-toggle ${includeBots ? 'on' : 'off'}`}
-                  onClick={() => setIncludeBots(!includeBots)}
-                >
-                  <Bot size={16} />
-                  {includeBots
-                    ? 'AI Climber Bots: ENABLED (Pacesetters on the mountain)'
-                    : 'AI Climber Bots: DISABLED (Humans Only)'}
-                </button>
-              </div>
-            </div>
-
-            <div className="summit-panel-actions">
-              <button className="btn-summit-launch" onClick={handleCreatePrivate}>
-                <Users size={20} />
-                CREATE & LAUNCH PRIVATE LOBBY ({createCode})
+              </label>
+              <button
+                type="button"
+                className={`toggle wide ${includeBots ? 'on' : ''}`}
+                onClick={() => setIncludeBots(!includeBots)}
+                aria-pressed={includeBots}
+              >
+                <Icon name="bot" size={20} />
+                <span>Bot climbers</span>
+                <em>{includeBots ? 'On' : 'Humans only'}</em>
+              </button>
+              <button className="btn btn-go btn-lg" onClick={handleCreatePrivate}>
+                <Icon name="users" size={20} />
+                <span>Create &amp; launch {createCode}</span>
               </button>
             </div>
-          </div>
-        )}
+          )}
 
-        {activeTab === 'join' && (
-          <div className="summit-tab-panel">
-            <div className="summit-form-grid">
-              <div className="summit-field">
-                <label>ENTER FRIEND&apos;S LOBBY CODE</label>
+          {activeTab === 'join' && (
+            <div className="lobby-tab">
+              <label className="field">
+                <span>Friend&apos;s lobby code</span>
                 <input
                   type="text"
                   maxLength={10}
                   value={joinCode}
                   onChange={(e) => setJoinCode(e.target.value.toUpperCase())}
-                  placeholder="e.g. ORB777"
-                  className="summit-code-input"
+                  placeholder="ORB777"
+                  className="code-input"
                 />
-              </div>
-
-              <div className="summit-field">
-                <label>
-                  <Lock size={13} /> ENTER LOBBY PASSWORD (IF PROTECTED)
-                </label>
+              </label>
+              <label className="field">
+                <span>
+                  <Icon name="lock" size={13} /> Password (if set)
+                </span>
                 <input
                   type="password"
                   maxLength={24}
                   value={joinPassword}
                   onChange={(e) => setJoinPassword(e.target.value)}
-                  placeholder="Enter password if the host set one..."
+                  placeholder="Only if the host set one"
                 />
-              </div>
-            </div>
-
-            <div className="summit-panel-actions">
-              <button className="btn-summit-launch" onClick={handleJoinPrivate}>
-                <KeyRound size={20} />
-                JOIN PRIVATE LOBBY
+              </label>
+              <button className="btn btn-go btn-lg" onClick={handleJoinPrivate}>
+                <Icon name="key" size={20} />
+                <span>Join private lobby</span>
               </button>
             </div>
-          </div>
-        )}
+          )}
 
-        {/* Quick Online Friend Testing Guide Footer */}
-        <div className="summit-online-guide">
-          <h4>🌍 How to Test Online with a Friend (Single-Port Tunnel):</h4>
-          <ol>
-            <li>
-              Keep both the game dev server (<code>npm run dev</code>) and multiplayer server (
-              <code>npm run server</code>) running.
-            </li>
-            <li>
-              Open a terminal and run{' '}
-              <code>npx cloudflared tunnel --url http://localhost:5173</code> (or{' '}
-              <code>ngrok http 5173</code>) and send the generated <code>https://...</code> link to
-              your friend.
-            </li>
-            <li>
-              Create a Private Lobby above, copy your <strong>Lobby Code &amp; Password</strong>,
-              and your friend can join from anywhere in the world!
-            </li>
-          </ol>
-        </div>
+          <details className="fold fold-flat">
+            <summary>
+              <Icon name="globe" size={16} />
+              <span>Hosting your own server?</span>
+              <Icon name="chevronDown" size={16} className="fold-chev" />
+            </summary>
+            <ol className="fold-body host-steps">
+              <li>
+                Run the game (<code>npm run dev</code>) and the multiplayer server (
+                <code>npm run server</code>).
+              </li>
+              <li>
+                Open a tunnel: <code>npx cloudflared tunnel --url http://localhost:5173</code> (or{' '}
+                <code>ngrok http 5173</code>) and share the https link.
+              </li>
+              <li>Create a private lobby and send your friend the code and password.</li>
+            </ol>
+          </details>
+        </section>
       </div>
     </div>
   );

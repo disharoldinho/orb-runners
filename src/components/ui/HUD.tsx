@@ -1,29 +1,11 @@
 import { useEffect, useRef, useState } from 'react';
-import {
-  RotateCcw,
-  Volume2,
-  VolumeX,
-  Map,
-  Trophy,
-  ArrowRight,
-  Zap,
-  Sparkles,
-  Ghost,
-  Flag,
-  Gamepad2,
-  Mountain,
-  Users,
-  Copy,
-  Check,
-  Lock,
-  Globe,
-  Monitor,
-} from 'lucide-react';
 import { MAPS } from '../../levels/maps';
 import { SUMMIT_PHASES, getSummitStageByCamps } from '../../levels/summitMap';
 import { getLevelById, livePhysics, useGameStore } from '../../store/useGameStore';
-import { GRAPHICS_QUALITY_LABEL } from '../../graphics/quality';
+import { useUiStore } from '../../store/useUiStore';
 import { MAX_TILT_RAD } from '../game/TiltController';
+import { HudMenuSheet } from './HudMenuSheet';
+import { EMOTES, Icon, MedalDisc } from './icons';
 import { soundFX } from './SoundManager';
 
 export function formatTimeMs(ms: number): string {
@@ -41,12 +23,25 @@ export function formatSplitDeltaMs(deltaMs: number): string {
   return `${sign}${absSec}s`;
 }
 
-const SUMMIT_EMOTES = [
-  { key: '1', emoji: '👋', label: 'Wave' },
-  { key: '2', emoji: '🔥', label: 'Fire' },
-  { key: '3', emoji: '😱', label: 'Whoa' },
-  { key: '4', emoji: '👑', label: 'Crown' },
-];
+export type LeaderboardEntry = {
+  id: string;
+  name: string;
+  altitudeM: number;
+  color: string;
+  isLocal: boolean;
+  isBot: boolean;
+};
+
+/** Summit phase names carry a 'STAGE N · ' prefix; the tag already shows the number. */
+const shortStageName = (name: string) => name.replace(/^\s*stage\s*\d+\s*[·•:\-–]\s*/i, '');
+
+const MEDAL_LABEL: Record<string, string> = {
+  author: 'Author medal',
+  gold: 'Gold medal',
+  silver: 'Silver medal',
+  bronze: 'Bronze medal',
+  none: 'Finished',
+};
 
 export function HUD() {
   const currentLevelId = useGameStore((s) => s.currentLevelId);
@@ -59,64 +54,70 @@ export function HUD() {
   const checkpointWarningMessage = useGameStore((s) => s.checkpointWarningMessage);
   const lastEarnedMedal = useGameStore((s) => s.lastEarnedMedal);
   const isNewRecord = useGameStore((s) => s.isNewRecord);
-  const soundMuted = useGameStore((s) => s.soundMuted);
-  const showGhost = useGameStore((s) => s.showGhost);
   const gamepadConnected = useGameStore((s) => s.gamepadConnected);
-  const hasGhostForLevel = useGameStore((s) => Boolean(s.ghosts[s.currentLevelId]));
   const avatar = useGameStore((s) => s.avatar);
-  const summitLobby = useGameStore((s) => s.summitLobby);
   const remoteClimbers = useGameStore((s) => s.remoteClimbers);
-  const summitBestAltitudeM = useGameStore((s) => s.summitBestAltitudeM);
+  const summitLobby = useGameStore((s) => s.summitLobby);
 
   const setPlayPhase = useGameStore((s) => s.setPlayPhase);
   const startRun = useGameStore((s) => s.startRun);
   const respawnAtCheckpoint = useGameStore((s) => s.respawnAtCheckpoint);
   const selectLevel = useGameStore((s) => s.selectLevel);
-  const setScreen = useGameStore((s) => s.setScreen);
-  const toggleMute = useGameStore((s) => s.toggleMute);
+  const exitToMenu = useGameStore((s) => s.exitToMenu);
   const toggleGhost = useGameStore((s) => s.toggleGhost);
-  const graphicsQuality = useGameStore((s) => s.graphicsQuality);
-  const cycleGraphicsQuality = useGameStore((s) => s.cycleGraphicsQuality);
   const triggerEmote = useGameStore((s) => s.triggerEmote);
   const openSummitLobbyModal = useGameStore((s) => s.openSummitLobbyModal);
+
+  const menuOpen = useUiStore((s) => s.menuOpen);
+  const toggleMenu = useUiStore((s) => s.toggleMenu);
+  const setMenuOpen = useUiStore((s) => s.setMenuOpen);
 
   const level = getLevelById(currentLevelId);
   const isSummit = Boolean(level.isSummitMode);
   const targetAltM = level.summitTargetAltitudeM || 250;
   const totalCheckpoints = level.checkpoints?.length ?? 0;
   const hasNextLevel = !isSummit && currentLevelId < MAPS.length;
+  const accent = level.accentColor || '#ffc531';
 
   const [countdownLabel, setCountdownLabel] = useState<string>('READY?');
   const [showSplitPopup, setShowSplitPopup] = useState(false);
-  const [copiedCode, setCopiedCode] = useState(false);
   const [hudLocalAltM, setHudLocalAltM] = useState(0);
 
   const tiltDotRef = useRef<HTMLDivElement>(null);
-  const speedTextRef = useRef<HTMLSpanElement>(null);
+  const speedRefs = useRef<(HTMLSpanElement | null)[]>([]);
   const ghostSplitRef = useRef<HTMLDivElement>(null);
-  const altitudeBigRef = useRef<HTMLSpanElement>(null);
-  const summitStageSpanRef = useRef<HTMLSpanElement>(null);
-  const summitPhaseTitleRef = useRef<HTMLHeadingElement>(null);
-  const summitPhaseSubRef = useRef<HTMLParagraphElement>(null);
+  const altitudeRefs = useRef<(HTMLSpanElement | null)[]>([]);
+  const altitudeBarRef = useRef<HTMLDivElement>(null);
+  const summitTagRef = useRef<HTMLSpanElement>(null);
+  const summitNameRef = useRef<HTMLHeadingElement>(null);
   const summitChallengeRef = useRef<HTMLParagraphElement>(null);
-  const thermometerFillRef = useRef<HTMLDivElement>(null);
-  const thermometerYouPinRef = useRef<HTMLDivElement>(null);
+  const stageStickerRef = useRef<HTMLDivElement>(null);
+  const railFillRef = useRef<HTMLDivElement>(null);
+  const railYouRef = useRef<HTMLDivElement>(null);
 
-  // Keyboard shortcuts: 'G' to toggle PB Ghost, '1'-'4' for Summit 3D Emotes
+  // Keyboard: G ghost, 1-4 Summit emotes, Esc run menu.
   useEffect(() => {
     const onKeyDown = (e: KeyboardEvent) => {
+      if (e.code === 'Escape') {
+        if (useGameStore.getState().playPhase !== 'goal') toggleMenu();
+        return;
+      }
       if (e.code === 'KeyG') {
         toggleGhost();
       } else if (isSummit) {
-        if (e.code === 'Digit1') triggerEmote('👋');
-        if (e.code === 'Digit2') triggerEmote('🔥');
-        if (e.code === 'Digit3') triggerEmote('😱');
-        if (e.code === 'Digit4') triggerEmote('👑');
+        const em = EMOTES.find((x) => e.code === `Digit${x.key}`);
+        if (em) triggerEmote(em.payload);
       }
     };
     window.addEventListener('keydown', onKeyDown);
     return () => window.removeEventListener('keydown', onKeyDown);
-  }, [toggleGhost, isSummit, triggerEmote]);
+  }, [toggleGhost, isSummit, triggerEmote, toggleMenu]);
+
+  // Close the sheet when the run ends or the level changes.
+  useEffect(() => {
+    if (playPhase === 'goal') setMenuOpen(false);
+  }, [playPhase, setMenuOpen]);
+  useEffect(() => () => setMenuOpen(false), [setMenuOpen]);
 
   // Warning toasts (missed / out-of-order gate) fade out on their own.
   useEffect(() => {
@@ -138,65 +139,51 @@ export function HUD() {
     return () => window.clearInterval(id);
   }, [isSummit]);
 
-  // Show Trackmania Checkpoint Split Popup for 2.35s when crossing a checkpoint
+  // Checkpoint split plate for 2.35s after crossing a gate
   useEffect(() => {
     if (!activeSplitBanner) {
       setShowSplitPopup(false);
       return;
     }
     setShowSplitPopup(true);
-    const t = window.setTimeout(() => {
-      setShowSplitPopup(false);
-    }, 2350);
+    const t = window.setTimeout(() => setShowSplitPopup(false), 2350);
     return () => window.clearTimeout(t);
   }, [activeSplitBanner]);
 
-  // Handle 3-2-1-GO Countdown Sequence
+  // READY? -> GO!! countdown
   useEffect(() => {
     if (playPhase !== 'countdown') return;
-
     setCountdownLabel('READY?');
     soundFX.playCountdownBeep(false);
-
     const t1 = window.setTimeout(() => {
       setCountdownLabel('GO!!');
       soundFX.playCountdownBeep(true);
       setPlayPhase('playing');
     }, 1150);
-
-    return () => {
-      window.clearTimeout(t1);
-    };
+    return () => window.clearTimeout(t1);
   }, [playPhase, runAttemptId, setPlayPhase]);
 
   // Auto-respawn after Fall Out
   useEffect(() => {
     if (playPhase !== 'fallout') return;
     const timer = window.setTimeout(() => {
-      if (crossedCheckpoints.length > 0) {
-        respawnAtCheckpoint();
-      } else {
-        startRun();
-      }
+      if (crossedCheckpoints.length > 0) respawnAtCheckpoint();
+      else startRun();
     }, 1550);
     return () => window.clearTimeout(timer);
   }, [playPhase, crossedCheckpoints.length, respawnAtCheckpoint, startRun]);
 
-  // Update 60fps Tilt Radar, Speedometer, Live Ghost Split & Summit Altitude Bar via DOM refs
+  // 60fps DOM updates (tilt radar, speed, ghost split, Summit altitude) without re-rendering
   useEffect(() => {
     let rafId = 0;
     const updateLoop = () => {
       if (tiltDotRef.current) {
-        const normX = (livePhysics.tiltRoll / MAX_TILT_RAD) * 34;
-        const normY = (-livePhysics.tiltPitch / MAX_TILT_RAD) * 34;
-        tiltDotRef.current.style.transform = `translate(${normX.toFixed(1)}px, ${normY.toFixed(
-          1
-        )}px)`;
+        const normX = (livePhysics.tiltRoll / MAX_TILT_RAD) * 26;
+        const normY = (-livePhysics.tiltPitch / MAX_TILT_RAD) * 26;
+        tiltDotRef.current.style.transform = `translate(${normX.toFixed(1)}px, ${normY.toFixed(1)}px)`;
       }
-      if (speedTextRef.current) {
-        const kmh = Math.round(livePhysics.ballSpeed * 3.6);
-        speedTextRef.current.textContent = String(kmh).padStart(2, '0');
-      }
+      const kmh = String(Math.round(livePhysics.ballSpeed * 3.6)).padStart(2, '0');
+      for (const el of speedRefs.current) if (el && el.textContent !== kmh) el.textContent = kmh;
       if (ghostSplitRef.current) {
         const deltaMs = livePhysics.ghostDeltaMs;
         if (deltaMs === null) {
@@ -204,49 +191,34 @@ export function HUD() {
         } else {
           ghostSplitRef.current.style.display = 'inline-flex';
           const sec = (Math.abs(deltaMs) / 1000).toFixed(2);
-          if (deltaMs <= 0) {
-            ghostSplitRef.current.className = 'ghost-split-chip ahead';
-            ghostSplitRef.current.textContent = `⚡ -${sec}s vs PB`;
-          } else {
-            ghostSplitRef.current.className = 'ghost-split-chip behind';
-            ghostSplitRef.current.textContent = `+${sec}s vs PB`;
-          }
+          ghostSplitRef.current.className = `hud-chip ${deltaMs <= 0 ? 'chip-ahead' : 'chip-behind'}`;
+          ghostSplitRef.current.textContent = `${deltaMs <= 0 ? '-' : '+'}${sec} PB`;
         }
       }
       if (isSummit) {
         const alt = Math.max(0, livePhysics.currentAltitudeM);
         const pct = Math.min(100, Math.max(0, (alt / targetAltM) * 100));
-        // Stage follows the Base Camps actually passed (in order), not raw altitude, so a
-        // lucky fall/bounce can never "skip" the stage banner ahead.
+        // Stage follows the Base Camps actually passed (in order), never raw altitude.
         const campsCrossed = useGameStore.getState().crossedCheckpoints.length;
-        const activePhase = getSummitStageByCamps(campsCrossed);
-        if (altitudeBigRef.current) {
-          altitudeBigRef.current.textContent = `${Math.round(alt)}m`;
-        }
-        if (summitStageSpanRef.current) {
-          const label = `STAGE ${activePhase.id} / ${SUMMIT_PHASES.length}`;
-          if (summitStageSpanRef.current.textContent !== label) {
-            summitStageSpanRef.current.textContent = label;
-          }
-          summitStageSpanRef.current.style.borderColor = activePhase.accentColor;
-        }
-        if (summitPhaseTitleRef.current) {
-          summitPhaseTitleRef.current.textContent = activePhase.name;
-          summitPhaseTitleRef.current.style.color = activePhase.accentColor;
-        }
-        if (summitPhaseSubRef.current) {
-          summitPhaseSubRef.current.textContent = activePhase.subtitle;
-        }
-        if (summitChallengeRef.current) {
-          summitChallengeRef.current.textContent = activePhase.challenge;
-          summitChallengeRef.current.style.borderColor = activePhase.accentColor;
-        }
-        if (thermometerFillRef.current) {
-          thermometerFillRef.current.style.height = `${pct.toFixed(1)}%`;
-        }
-        if (thermometerYouPinRef.current) {
-          thermometerYouPinRef.current.style.bottom = `${pct.toFixed(1)}%`;
-        }
+        const phase = getSummitStageByCamps(campsCrossed);
+        const altText = `${Math.round(alt)}`;
+        for (const el of altitudeRefs.current)
+          if (el && el.textContent !== altText) el.textContent = altText;
+        if (altitudeBarRef.current) altitudeBarRef.current.style.width = `${pct.toFixed(1)}%`;
+        const tag = `${phase.id}/${SUMMIT_PHASES.length}`;
+        if (summitTagRef.current && summitTagRef.current.textContent !== tag)
+          summitTagRef.current.textContent = tag;
+        const shortName = shortStageName(phase.name);
+        if (summitNameRef.current && summitNameRef.current.textContent !== shortName)
+          summitNameRef.current.textContent = shortName;
+        if (
+          summitChallengeRef.current &&
+          summitChallengeRef.current.textContent !== phase.challenge
+        )
+          summitChallengeRef.current.textContent = phase.challenge;
+        stageStickerRef.current?.style.setProperty('--stage-accent', phase.accentColor);
+        if (railFillRef.current) railFillRef.current.style.height = `${pct.toFixed(1)}%`;
+        if (railYouRef.current) railYouRef.current.style.bottom = `${pct.toFixed(1)}%`;
       }
       rafId = requestAnimationFrame(updateLoop);
     };
@@ -254,18 +226,11 @@ export function HUD() {
     return () => cancelAnimationFrame(rafId);
   }, [isSummit, targetAltM]);
 
-  const handleCopyLobbyCode = () => {
-    navigator.clipboard?.writeText(summitLobby.lobbyCode).catch(() => {});
-    setCopiedCode(true);
-    setTimeout(() => setCopiedCode(false), 1800);
-  };
-
-  // Build sorted leaderboard for Summit Mode
-  const leaderboardEntries = isSummit
+  const leaderboardEntries: LeaderboardEntry[] = isSummit
     ? [
         {
           id: 'local-you',
-          name: `${avatar.name || 'You'} (YOU)`,
+          name: avatar.name || 'You',
           altitudeM: hudLocalAltM,
           color: avatar.primaryColor,
           isLocal: true,
@@ -275,361 +240,317 @@ export function HUD() {
           id: c.id,
           name: c.name,
           altitudeM: c.altitudeM,
-          color: c.avatar?.primaryColor || '#38bdf8',
+          color: c.avatar?.primaryColor || '#3fa9ff',
           isLocal: false,
           isBot: Boolean(c.isBot),
         })),
       ].sort((a, b) => b.altitudeM - a.altitudeM)
     : [];
+  const myRank = leaderboardEntries.findIndex((e) => e.isLocal) + 1;
+  // Desktop board: top 5, but you are always on it (top 4 + you when lower down).
+  const ranked = leaderboardEntries.map((e, i) => ({ e, i }));
+  const boardRows = myRank > 5 ? [...ranked.slice(0, 4), ranked[myRank - 1]] : ranked.slice(0, 5);
+  const firstPhase = SUMMIT_PHASES[0];
 
   return (
-    <div className="hud-overlay">
-      {/* Top Bar */}
-      <div className="hud-top-bar">
-        {/* Stage Badge + Checkpoint Counter */}
-        <div className="hud-card stage-info-card">
-          <div className="stage-badge-row">
-            {isSummit ? (
-              <span ref={summitStageSpanRef} className="stage-pill summit-stage-pill">
-                STAGE 1 / {SUMMIT_PHASES.length}
-              </span>
-            ) : (
-              <span className="stage-pill">STAGE {String(level.id).padStart(2, '0')}</span>
-            )}
-            {totalCheckpoints > 0 && (
-              <span
-                className={`cp-progress-pill ${
-                  crossedCheckpoints.length === totalCheckpoints ? 'cp-complete' : ''
-                }`}
-              >
-                <Flag size={12} />
-                {isSummit
-                  ? `CAMPS ${crossedCheckpoints.length}/${totalCheckpoints}`
-                  : `CP ${crossedCheckpoints.length}/${totalCheckpoints}`}
-              </span>
-            )}
-            {gamepadConnected && (
-              <span className="gamepad-hud-pill" title="Controller Connected">
-                <Gamepad2 size={13} />
-                PAD
-              </span>
-            )}
-          </div>
-          <div>
-            <h2 ref={isSummit ? summitPhaseTitleRef : undefined}>{level.name}</h2>
-            <p ref={isSummit ? summitPhaseSubRef : undefined}>{level.subtitle}</p>
-            {isSummit && (
-              <p ref={summitChallengeRef} className="summit-challenge-line">
-                {SUMMIT_PHASES[0].challenge}
-              </p>
-            )}
-          </div>
-        </div>
-
-        {/* Center Trackmania Speedrun Clock + Summit Altitude Counter */}
-        <div className="hud-card timer-card">
-          <div className="timer-label">
-            {isSummit ? 'LIVE SUMMIT ASCENT & TIMER' : 'OFFICIAL TRACKMANIA TIMER'}
-          </div>
-          <div className="timer-digits">{formatTimeMs(elapsedMs)}</div>
-          {isSummit && (
-            <div className="summit-altitude-readout-row">
-              <Mountain size={16} color="#fbbf24" />
-              <span>ALTITUDE:</span>
-              <strong ref={altitudeBigRef}>0m</strong>
-              <span className="summit-target-slash">/ {targetAltM}m</span>
-              <span className="summit-peak-tag">PEAK: {summitBestAltitudeM}m</span>
-            </div>
-          )}
-          <div className="timer-badges-row">
-            {bonusTimeSavedMs > 0 && (
-              <div className="bonus-time-chip">
-                <Sparkles size={13} />
-                <span>-{(bonusTimeSavedMs / 1000).toFixed(1)}s Gem</span>
-              </div>
-            )}
-            <div ref={ghostSplitRef} className="ghost-split-chip" style={{ display: 'none' }} />
-          </div>
-          {!isSummit && (
-            <div className="medal-targets-row">
-              <span className="medal-target author" title="Author / Trackmaster Target">
-                🎖️ {(level.medalTimesMs.author / 1000).toFixed(1)}s
-              </span>
-              <span className="medal-target gold">
-                🥇 {(level.medalTimesMs.gold / 1000).toFixed(1)}s
-              </span>
-              <span className="medal-target silver">
-                🥈 {(level.medalTimesMs.silver / 1000).toFixed(1)}s
-              </span>
-              <span className="medal-target bronze">
-                🥉 {(level.medalTimesMs.bronze / 1000).toFixed(1)}s
-              </span>
-            </div>
+    <div className="hud" data-summit={isSummit ? 'true' : 'false'}>
+      {/* ---------- Top-left: stage sticker ---------- */}
+      <div
+        ref={stageStickerRef}
+        className="hud-stage"
+        style={{ ['--stage-accent' as string]: isSummit ? firstPhase.accentColor : accent }}
+        data-testid="hud-stage"
+      >
+        <span className="hud-stage-tag" ref={isSummit ? summitTagRef : undefined}>
+          {isSummit ? `1/${SUMMIT_PHASES.length}` : String(level.id).padStart(2, '0')}
+        </span>
+        <div className="hud-stage-text">
+          <h2 ref={isSummit ? summitNameRef : undefined}>
+            {isSummit ? shortStageName(firstPhase.name) : level.name}
+          </h2>
+          {isSummit ? (
+            <p ref={summitChallengeRef} className="desk-only">
+              {firstPhase.challenge}
+            </p>
+          ) : (
+            <p className="desk-only">{level.subtitle}</p>
           )}
         </div>
-
-        {/* Quick Actions */}
-        <div className="hud-actions">
-          {crossedCheckpoints.length > 0 && (
-            <button
-              className="hud-icon-btn cp-respawn-btn"
-              onClick={respawnAtCheckpoint}
-              title="Respawn at Last Checkpoint / Biome Camp (C / Backspace / Gamepad B)"
-            >
-              <Flag size={17} />
-              <span>
-                {isSummit
-                  ? gamepadConnected
-                    ? 'Camp (B)'
-                    : 'Camp (C)'
-                  : gamepadConnected
-                    ? 'CP (B)'
-                    : 'CP (C)'}
-              </span>
-            </button>
-          )}
-          {hasGhostForLevel && (
-            <button
-              className={`hud-icon-btn ${showGhost ? 'ghost-active' : ''}`}
-              onClick={toggleGhost}
-              title="Toggle Personal Best Ghost (G / Gamepad X)"
-            >
-              <Ghost size={18} />
-              <span>{showGhost ? 'Ghost: ON' : 'Ghost: OFF'}</span>
-            </button>
-          )}
-          <button
-            className="hud-icon-btn"
-            onClick={startRun}
-            title="Full Stage Reset (R / Gamepad Y)"
+        {totalCheckpoints > 0 && (
+          <span
+            className={`hud-cp ${crossedCheckpoints.length === totalCheckpoints ? 'done' : ''}`}
+            title={isSummit ? 'Base camps passed' : 'Checkpoints passed'}
           >
-            <RotateCcw size={18} />
-            <span>{gamepadConnected ? 'Reset (Y)' : 'Reset (R)'}</span>
-          </button>
-          <button
-            className="hud-icon-btn"
-            onClick={cycleGraphicsQuality}
-            title="Graphics Quality (Low / Medium / High)"
-          >
-            <Monitor size={17} />
-            <span>GFX: {GRAPHICS_QUALITY_LABEL[graphicsQuality]}</span>
-          </button>
-          <button className="hud-icon-btn" onClick={toggleMute} title="Toggle Audio">
-            {soundMuted ? <VolumeX size={18} /> : <Volume2 size={18} />}
-          </button>
-          <button className="hud-icon-btn" onClick={() => setScreen('menu')} title="Stage Select">
-            <Map size={18} />
-            <span>Maps</span>
-          </button>
-        </div>
+            <Icon name={isSummit ? 'tent' : 'flag'} size={13} />
+            {crossedCheckpoints.length}/{totalCheckpoints}
+          </span>
+        )}
       </div>
 
-      {/* ================= SUMMIT MODE LEFT ALTITUDE THERMOMETER ================= */}
-      {isSummit && (
-        <div className="summit-thermometer-panel">
-          <div className="thermometer-top-label">👑 {targetAltM}m</div>
-          <div className="thermometer-track">
-            <div ref={thermometerFillRef} className="thermometer-fill" style={{ height: '0%' }} />
-            {/* Biome Camp Tick Marks */}
-            {SUMMIT_PHASES.slice(1).map(({ minAltitudeM: campAlt }) => (
-              <div
-                key={campAlt}
-                className="thermometer-camp-tick"
-                style={{ bottom: `${(campAlt / targetAltM) * 100}%` }}
-              >
-                <span>{campAlt}m</span>
-              </div>
+      {/* ---------- Top-centre: the one essential plate ---------- */}
+      <div className="hud-center">
+        <div className="hud-timer" data-testid="hud-timer">
+          <div className="hud-timer-digits">{formatTimeMs(elapsedMs)}</div>
+          <div className="hud-timer-sub">
+            <span className="hud-speed compact-only">
+              <Icon name="bolt" size={12} />
+              <span ref={(el) => (speedRefs.current[0] = el)}>00</span>
+              <small>km/h</small>
+            </span>
+            {isSummit && (
+              <span className="hud-alt">
+                <Icon name="mountain" size={13} />
+                <span ref={(el) => (altitudeRefs.current[0] = el)}>0</span>
+                <small>/{targetAltM}m</small>
+              </span>
+            )}
+            {isSummit && myRank > 0 && (
+              <span className="hud-rank" title="Your place among climbers">
+                P{myRank}
+              </span>
+            )}
+          </div>
+          {isSummit && (
+            <div className="hud-alt-bar">
+              <div ref={altitudeBarRef} />
+            </div>
+          )}
+        </div>
+        <div className="hud-chips">
+          {bonusTimeSavedMs > 0 && (
+            <div className="hud-chip chip-gem">
+              <Icon name="gem" size={12} />-{(bonusTimeSavedMs / 1000).toFixed(1)}s
+            </div>
+          )}
+          <div ref={ghostSplitRef} className="hud-chip" style={{ display: 'none' }} />
+        </div>
+        {!isSummit && (
+          <div className="hud-medals desk-only" aria-label="Medal targets">
+            {(['author', 'gold', 'silver', 'bronze'] as const).map((m) => (
+              <span key={m} title={MEDAL_LABEL[m]}>
+                <MedalDisc tier={m} size={14} />
+                {(level.medalTimesMs[m] / 1000).toFixed(1)}
+              </span>
             ))}
-            {/* Remote Climber Pins */}
-            {remoteClimbers.map((rc) => {
-              const pct = Math.min(100, Math.max(0, (rc.altitudeM / targetAltM) * 100));
-              return (
-                <div
-                  key={rc.id}
-                  className="thermometer-climber-pin remote"
-                  style={{
-                    bottom: `${pct.toFixed(1)}%`,
-                    backgroundColor: rc.avatar?.primaryColor || '#38bdf8',
-                  }}
-                  title={`${rc.name}: ${rc.altitudeM}m`}
-                />
-              );
-            })}
-            {/* Local Player Pin */}
-            <div
-              ref={thermometerYouPinRef}
-              className="thermometer-climber-pin you"
-              style={{ bottom: '0%' }}
-            >
-              <span>YOU</span>
+          </div>
+        )}
+      </div>
+
+      {/* ---------- Top-right: actions ---------- */}
+      <div className="hud-actions">
+        {crossedCheckpoints.length > 0 && (
+          <button
+            className="key-btn desk-only"
+            onClick={respawnAtCheckpoint}
+            title={`Respawn at last ${isSummit ? 'camp' : 'checkpoint'} (C / Backspace / Pad B)`}
+          >
+            <Icon name="flag" size={18} />
+            <span>Respawn</span>
+            <kbd>{gamepadConnected ? 'B' : 'C'}</kbd>
+          </button>
+        )}
+        <button className="key-btn desk-only" onClick={startRun} title="Restart stage (R / Pad Y)">
+          <Icon name="restart" size={18} />
+          <span>Restart</span>
+          <kbd>{gamepadConnected ? 'Y' : 'R'}</kbd>
+        </button>
+        {playPhase !== 'goal' && (
+          <button
+            className={`key-btn menu-btn ${menuOpen ? 'on' : ''}`}
+            onClick={toggleMenu}
+            aria-expanded={menuOpen}
+            aria-label="Open run menu"
+            title="Menu: settings, sound, ghost, maps (Esc / Pad Start)"
+            data-testid="hud-menu-btn"
+          >
+            <Icon name="menu" size={20} />
+            <span className="desk-only">Menu</span>
+          </button>
+        )}
+      </div>
+
+      {/* ---------- Desktop-only extras ---------- */}
+      {isSummit && (
+        <div className="hud-rail desk-only" aria-hidden>
+          <span className="hud-rail-top">
+            <Icon name="crown" size={14} />
+            {targetAltM}
+          </span>
+          <div className="hud-rail-track">
+            <div ref={railFillRef} className="hud-rail-fill" />
+            {SUMMIT_PHASES.slice(1).map(({ minAltitudeM }) => (
+              <i key={minAltitudeM} style={{ bottom: `${(minAltitudeM / targetAltM) * 100}%` }} />
+            ))}
+            {remoteClimbers.map((rc) => (
+              <b
+                key={rc.id}
+                style={{
+                  bottom: `${Math.min(100, Math.max(0, (rc.altitudeM / targetAltM) * 100)).toFixed(1)}%`,
+                  background: rc.avatar?.primaryColor || '#3fa9ff',
+                }}
+                title={`${rc.name}: ${rc.altitudeM}m`}
+              />
+            ))}
+            <div ref={railYouRef} className="hud-rail-you">
+              YOU
             </div>
           </div>
-          <div className="thermometer-bottom-label">🏕️ 0m</div>
+          <span className="hud-rail-bottom">0</span>
         </div>
       )}
 
-      {/* ================= SUMMIT MODE RIGHT LIVE LEADERBOARD & LOBBY HUD ================= */}
       {isSummit && (
-        <div className="summit-leaderboard-panel">
-          <div className="summit-lobby-status-header">
-            <div className="summit-room-badge">
-              {summitLobby.mode === 'private' ? <Lock size={13} /> : <Globe size={13} />}
-              <span>
-                {summitLobby.mode === 'private'
-                  ? `CODE: ${summitLobby.lobbyCode}`
-                  : 'PUBLIC SERVER'}
-              </span>
-              {summitLobby.mode === 'private' && (
-                <button
-                  className="lobby-copy-mini-btn"
-                  onClick={handleCopyLobbyCode}
-                  title="Copy Lobby Code"
-                >
-                  {copiedCode ? <Check size={12} /> : <Copy size={12} />}
-                </button>
-              )}
-            </div>
-            <button className="lobby-switch-mini-btn" onClick={openSummitLobbyModal}>
-              <Users size={12} />
-              Lobby
-            </button>
-          </div>
-
-          <div className="summit-lb-title">
-            <span>LIVE CLIMBERS ({leaderboardEntries.length})</span>
+        <aside className="hud-board desk-only">
+          <header>
+            <span className="hud-board-room">
+              <Icon name={summitLobby.mode === 'private' ? 'lock' : 'globe'} size={13} />
+              {summitLobby.mode === 'private' ? summitLobby.lobbyCode : 'Public'}
+            </span>
             <span className={`conn-dot ${summitLobby.isConnected ? 'online' : 'local'}`} />
-          </div>
-
-          <div className="summit-lb-list">
-            {leaderboardEntries.slice(0, 7).map((entry, idx) => (
-              <div
-                key={entry.id}
-                className={`summit-lb-row ${entry.isLocal ? 'is-you' : ''}`}
-              >
-                <span className="lb-rank">#{idx + 1}</span>
-                <span className="lb-color-dot" style={{ backgroundColor: entry.color }} />
-                <span className="lb-name">{entry.name}</span>
-                <strong className="lb-alt">{entry.altitudeM}m</strong>
-              </div>
+            <button className="mini-btn" onClick={openSummitLobbyModal} title="Switch lobby">
+              <Icon name="users" size={13} />
+            </button>
+          </header>
+          <ol>
+            {boardRows.map(({ e, i }) => (
+              <li key={e.id} className={e.isLocal ? 'is-you' : ''}>
+                <span className="rank">{i + 1}</span>
+                <i style={{ background: e.color }} />
+                <span className="name">
+                  {e.name.replace(/\s*\[BOT\]\s*/i, '')}
+                  {e.isBot && <small>bot</small>}
+                </span>
+                <strong>{e.altitudeM}m</strong>
+              </li>
             ))}
-          </div>
-
-          <div className="summit-emote-bar">
-            {SUMMIT_EMOTES.map((em) => (
+          </ol>
+          <div className="hud-emotes">
+            {EMOTES.map((em) => (
               <button
                 key={em.key}
-                className="summit-emote-btn"
-                onClick={() => triggerEmote(em.emoji)}
-                title={`Send ${em.label} Emote (Key ${em.key})`}
+                onClick={() => triggerEmote(em.payload)}
+                title={`${em.label} emote (key ${em.key})`}
+                style={{ ['--emote' as string]: em.color }}
               >
-                <span className="emote-icon">{em.emoji}</span>
-                <span className="emote-key">{em.key}</span>
+                <Icon name={em.icon} size={18} />
+                <kbd>{em.key}</kbd>
               </button>
             ))}
           </div>
-        </div>
+        </aside>
       )}
 
-      {/* Trackmania Official Checkpoint Split Freeze Banner */}
-      {showSplitPopup && activeSplitBanner && playPhase === 'playing' && (
-        <div className="tm-split-banner">
-          <div className="tm-split-header">
-            {isSummit
-              ? `🏕️ BIOME BASE CAMP ${activeSplitBanner.order} REACHED!`
-              : `CHECKPOINT ${activeSplitBanner.order} / ${activeSplitBanner.totalCheckpoints}`}
+      <div className="hud-bottom desk-only">
+        <div className="hud-radar" title="Board tilt">
+          <div className="hud-radar-dish">
+            <div ref={tiltDotRef} className="hud-radar-dot" />
           </div>
-          <div className="tm-split-row">
-            <span className="tm-split-time">{formatTimeMs(activeSplitBanner.splitTimeMs)}</span>
+          <span>{gamepadConnected ? 'L-stick' : 'WASD'}</span>
+        </div>
+        <div className="hud-speedo">
+          <span ref={(el) => (speedRefs.current[1] = el)}>00</span>
+          <small>km/h</small>
+        </div>
+      </div>
+
+      {/* ---------- Transient banners ---------- */}
+      {showSplitPopup && activeSplitBanner && playPhase === 'playing' && (
+        <div className="hud-split">
+          <div className="hud-split-head">
+            {isSummit
+              ? `Camp ${activeSplitBanner.order} reached`
+              : `Checkpoint ${activeSplitBanner.order}/${activeSplitBanner.totalCheckpoints}`}
+          </div>
+          <div className="hud-split-row">
+            <span className="hud-split-time">{formatTimeMs(activeSplitBanner.splitTimeMs)}</span>
             {activeSplitBanner.deltaMs !== null ? (
               <span
-                className={`tm-split-delta ${
-                  activeSplitBanner.deltaMs <= 0 ? 'tm-blue-ahead' : 'tm-red-behind'
-                }`}
+                className={`hud-split-delta ${activeSplitBanner.deltaMs <= 0 ? 'ahead' : 'behind'}`}
               >
                 {formatSplitDeltaMs(activeSplitBanner.deltaMs)}
               </span>
             ) : (
-              <span className="tm-split-delta tm-neutral">
-                {isSummit ? 'RESPAWN SAVED (PRESS C)' : 'SECTOR RECORDED'}
+              <span className="hud-split-delta neutral">
+                {isSummit ? 'Respawn saved' : 'Split saved'}
               </span>
             )}
           </div>
         </div>
       )}
 
-      {/* Missed Checkpoint Warning */}
       {checkpointWarningMessage && playPhase === 'playing' && (
-        <div className="tm-warning-toast">{checkpointWarningMessage}</div>
+        <div className="hud-warning">
+          <Icon name="alert" size={18} />
+          {checkpointWarningMessage}
+        </div>
       )}
 
-      {/* Center Status Banners */}
       {playPhase === 'countdown' && (
-        <div className="center-banner countdown-banner">
-          <div className="banner-sub">
-            {isSummit ? '9-STAGE MOUNTAIN CLIMB' : `STAGE ${level.id}`}
-          </div>
-          <div className="banner-main">{countdownLabel}</div>
+        <div className="hud-shout countdown">
+          <small>{isSummit ? '9-stage mountain climb' : `Stage ${level.id}`}</small>
+          <strong key={countdownLabel}>{countdownLabel}</strong>
         </div>
       )}
 
       {playPhase === 'fallout' && (
-        <div className="center-banner fallout-banner">
-          <div className="banner-main">FALL OUT!</div>
-          <div className="banner-sub">
+        <div className="hud-shout fallout">
+          <strong>FALL OUT!</strong>
+          <small>
             {crossedCheckpoints.length > 0
               ? isSummit
-                ? `Returning to Biome Camp ${crossedCheckpoints.length}...`
-                : `Respawning at Checkpoint ${crossedCheckpoints.length}... (or press R for Start)`
-              : 'Respawning on start pad...'}
-          </div>
+                ? `Back to camp ${crossedCheckpoints.length}`
+                : `Back to checkpoint ${crossedCheckpoints.length}`
+              : 'Back to the start pad'}
+          </small>
         </div>
       )}
 
       {playPhase === 'goal' && (
-        <div className="goal-modal-backdrop">
-          <div className="goal-modal-card">
-            <div className="goal-header-badge">
-              {isSummit ? '👑 220M SUMMIT CONQUERED!' : 'STAGE CLEAR!'}
-            </div>
+        <div className="results-backdrop">
+          <div
+            className={`results-card tier-${lastEarnedMedal}`}
+            role="dialog"
+            aria-label="Results"
+          >
+            <div className="results-ribbon">{isSummit ? 'Summit conquered!' : 'Stage clear!'}</div>
             <h2>{level.name}</h2>
-
-            <div className="goal-medal-showcase">
-              <div className={`medal-emblem ${lastEarnedMedal}`}>
-                <Trophy size={42} />
-                <span>
-                  {lastEarnedMedal === 'author'
-                    ? '🎖️ AUTHOR TRACKMASTER MEDAL'
-                    : `${lastEarnedMedal.toUpperCase()} MEDAL`}
-                </span>
+            <div className="results-main">
+              <div className="results-medal">
+                <MedalDisc tier={lastEarnedMedal} size={76} />
+                <span>{MEDAL_LABEL[lastEarnedMedal] ?? 'Finished'}</span>
               </div>
-            </div>
-
-            <div className="goal-stats-box">
-              <div className="stat-item">
-                <span>OFFICIAL CLEAR TIME</span>
+              <div className="results-time">
+                <small>Clear time</small>
                 <strong>{formatTimeMs(elapsedMs)}</strong>
+                {isNewRecord && <span className="results-stamp">New PB · ghost saved</span>}
               </div>
-              {isNewRecord && (
-                <div className="new-record-pill">NEW PERSONAL BEST & GHOST SAVED!</div>
-              )}
             </div>
-
-            <div className="goal-buttons-row">
-              <button className="btn-secondary" onClick={startRun}>
-                <RotateCcw size={18} />
-                <span>{gamepadConnected ? 'Replay (Y)' : 'Climb Again (R)'}</span>
+            {!isSummit && (
+              <div className="results-targets">
+                {(['author', 'gold', 'silver', 'bronze'] as const).map((m) => (
+                  <span key={m}>
+                    <MedalDisc tier={m} size={14} />
+                    {(level.medalTimesMs[m] / 1000).toFixed(1)}s
+                  </span>
+                ))}
+              </div>
+            )}
+            <div className="results-actions">
+              <button className="btn btn-paper" onClick={startRun}>
+                <Icon name="restart" size={18} />
+                <span>{isSummit ? 'Climb again' : 'Retry'}</span>
+                <kbd>{gamepadConnected ? 'Y' : 'R'}</kbd>
               </button>
-              <button className="btn-secondary" onClick={() => setScreen('menu')}>
-                <Map size={18} />
-                <span>{gamepadConnected ? 'Maps (B)' : 'Main Menu'}</span>
+              <button className="btn btn-paper" onClick={exitToMenu}>
+                <Icon name="map" size={18} />
+                <span>Menu</span>
+                {gamepadConnected && <kbd>B</kbd>}
               </button>
               {hasNextLevel && (
-                <button
-                  className="btn-primary"
-                  onClick={() => selectLevel(currentLevelId + 1)}
-                >
-                  <span>{gamepadConnected ? 'Next Stage (A)' : 'Next Stage'}</span>
-                  <ArrowRight size={18} />
+                <button className="btn btn-go" onClick={() => selectLevel(currentLevelId + 1)}>
+                  <span>Next stage</span>
+                  <Icon name="arrowRight" size={18} />
+                  {gamepadConnected && <kbd>A</kbd>}
                 </button>
               )}
             </div>
@@ -637,35 +558,7 @@ export function HUD() {
         </div>
       )}
 
-      {/* Bottom HUD: Board Tilt Gizmo & Speedometer */}
-      <div className="hud-bottom-bar">
-        <div className="hud-card tilt-gizmo-card">
-          <div className="tilt-radar-circle">
-            <div className="radar-crosshair-h" />
-            <div className="radar-crosshair-v" />
-            <div ref={tiltDotRef} className="radar-tilt-dot" />
-          </div>
-          <div className="tilt-gizmo-meta">
-            <span className="gizmo-title">BOARD TILT</span>
-            <span className="gizmo-keys">
-              {gamepadConnected ? 'Left Stick / D-Pad' : 'WASD / Arrows'}
-            </span>
-            <span className="gizmo-subhint">
-              {gamepadConnected ? '(B) CP Respawn · (Y) Reset' : '(C) CP Respawn · (R) Reset'}
-            </span>
-          </div>
-        </div>
-
-        <div className="hud-card speedometer-card">
-          <Zap size={20} className="speed-icon" />
-          <div className="speed-readout">
-            <span ref={speedTextRef} className="speed-number">
-              00
-            </span>
-            <span className="speed-unit">KM/H</span>
-          </div>
-        </div>
-      </div>
+      <HudMenuSheet leaderboard={leaderboardEntries} />
     </div>
   );
 }
