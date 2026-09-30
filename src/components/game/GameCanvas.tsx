@@ -1,18 +1,20 @@
 import { Suspense, useEffect, useMemo, useRef, useState } from 'react';
-import { Canvas, useFrame } from '@react-three/fiber';
-import {
-  Environment,
-  Lightformer,
-  PerformanceMonitor,
-  SoftShadows,
-  Sparkles,
-  Stars,
-} from '@react-three/drei';
+import { Canvas, useFrame, useThree } from '@react-three/fiber';
+import { Environment, Lightformer, PerformanceMonitor, SoftShadows } from '@react-three/drei';
 import { Physics } from '@react-three/rapier';
 import * as THREE from 'three';
 import { getSummitStageByCamps } from '../../levels/summitMap';
 import { getLevelById, livePhysics, useGameStore } from '../../store/useGameStore';
-import { GRAPHICS_PRESETS } from '../../graphics/quality';
+import { GRAPHICS_PRESETS, GraphicsQuality } from '../../graphics/quality';
+import { ShaderClock } from '../../graphics/shaderLib';
+import { CampaignWorld } from '../environment/CampaignWorld';
+import { CloudSea, Ocean } from '../environment/CloudSea';
+import { DevPhotoCamera } from '../environment/DevPhotoCamera';
+import { DistantMountains } from '../environment/DistantMountains';
+import { SkyDome } from '../environment/SkyDome';
+import { SKY_LOOKS } from '../environment/skyLook';
+import { SummitWorld, TerrainCameraGuard } from '../environment/SummitWorld';
+import { StormLightning, ThemeParticles } from '../environment/ThemeParticles';
 import { LevelData, SkyPreset } from '../../types/level';
 import { GhostOrb } from './GhostOrb';
 import { MonkeyCamera } from './MonkeyCamera';
@@ -20,7 +22,7 @@ import { OrbSpeedTrail } from './OrbSpeedTrail';
 import { ParticleFX } from './ParticleFX';
 import { PlayerOrb } from './PlayerOrb';
 import { PostFX } from './PostFX';
-import { AtmosphereFog, SunLight } from './SceneLighting';
+import { AtmosphereFog, RimLight, SunLight } from './SceneLighting';
 import { StageBuilder } from './StageBuilder';
 import { SummitMultiplayer } from './SummitMultiplayer';
 import { TiltController } from './TiltController';
@@ -157,44 +159,23 @@ const SKY_THEMES: Record<
   },
 };
 
+/**
+ * Sky + far horizon. The group follows the orb and leans with the board tilt (the tilt
+ * cue), so everything inside reads as infinitely far away.
+ */
 function HorizonEnvironment({
   preset,
-  starCount,
+  quality,
+  summit,
 }: {
   preset: LevelData['skyPreset'];
-  starCount: number;
+  quality: GraphicsQuality;
+  summit: boolean;
 }) {
   const horizonRef = useRef<THREE.Group>(null);
-  const outerOrbitalRef = useRef<THREE.Group>(null);
-  const theme = SKY_THEMES[preset] || SKY_THEMES.day;
+  const look = SKY_LOOKS[preset] || SKY_LOOKS.day;
 
-  const islands = useMemo(() => {
-    const items: {
-      angle: number;
-      dist: number;
-      height: number;
-      radius: number;
-      depth: number;
-      hasCrystal: boolean;
-    }[] = [];
-    for (let i = 0; i < 16; i++) {
-      const angle = (i / 16) * Math.PI * 2;
-      items.push({
-        angle,
-        dist: 72 + (i % 3) * 18,
-        height: -10 + Math.sin(i * 2.3) * 14,
-        radius: 4.5 + (i % 4) * 2.2,
-        depth: 6 + (i % 3) * 3.5,
-        hasCrystal: i % 2 === 0,
-      });
-    }
-    return items;
-  }, []);
-
-  useFrame((_, delta) => {
-    if (outerOrbitalRef.current) {
-      outerOrbitalRef.current.rotation.y += delta * 0.08;
-    }
+  useFrame(() => {
     if (!horizonRef.current) return;
     const [bx, by, bz] = livePhysics.ballPosition;
     const yaw = livePhysics.cameraYaw;
@@ -214,70 +195,26 @@ function HorizonEnvironment({
 
   return (
     <group ref={horizonRef}>
-      <Stars radius={125} depth={50} count={starCount} factor={4} saturation={0.6} fade speed={1.2} />
-
-      {/* Upgraded Celestial Sun & Volumetric-Style Corona Glow Rings */}
-      <group position={[0, 34, -135]}>
-        <mesh>
-          <sphereGeometry args={[14, 32, 32]} />
-          <meshBasicMaterial color={theme.sunColor} fog={false} />
-        </mesh>
-        <mesh>
-          <sphereGeometry args={[17.5, 32, 32]} />
-          <meshBasicMaterial color={theme.sunColor} transparent opacity={0.22} fog={false} />
-        </mesh>
-        <mesh rotation={[Math.PI / 3, 0.3, 0]}>
-          <torusGeometry args={[22, 0.5, 12, 64]} />
-          <meshBasicMaterial color={theme.ringColor} transparent opacity={0.65} fog={false} />
-        </mesh>
-        <mesh rotation={[-Math.PI / 4, -0.2, 0]}>
-          <torusGeometry args={[28, 0.28, 12, 64]} />
-          <meshBasicMaterial color={theme.sunColor} transparent opacity={0.4} fog={false} />
-        </mesh>
-      </group>
-
-      {/* True-Horizon Equatorial Reference Rings */}
-      <mesh rotation={[Math.PI / 2, 0, 0]}>
-        <torusGeometry args={[95, 0.38, 10, 96]} />
-        <meshBasicMaterial color={theme.ringColor} transparent opacity={0.45} fog={false} />
-      </mesh>
-      <mesh position={[0, -16, 0]} rotation={[Math.PI / 2, 0, 0]}>
-        <torusGeometry args={[78, 0.24, 10, 96]} />
-        <meshBasicMaterial color={theme.ringColor} transparent opacity={0.28} fog={false} />
-      </mesh>
-
-      {/* Multi-Tiered 3D Floating Sky Islands */}
-      <group ref={outerOrbitalRef}>
-        {islands.map((isl, idx) => {
-          const x = Math.cos(isl.angle) * isl.dist;
-          const z = Math.sin(isl.angle) * isl.dist;
-          return (
-            <group key={idx} position={[x, isl.height, z]}>
-              <mesh position={[0, -isl.depth * 0.5, 0]} rotation={[Math.PI, 0, 0]}>
-                <coneGeometry args={[isl.radius, isl.depth, 7]} />
-                <meshStandardMaterial color={theme.islandRock} roughness={0.75} metalness={0.2} />
-              </mesh>
-              <mesh position={[0, 0.3, 0]}>
-                <cylinderGeometry args={[isl.radius * 1.04, isl.radius * 0.95, 0.8, 7]} />
-                <meshStandardMaterial color={theme.islandTop} roughness={0.4} metalness={0.2} />
-              </mesh>
-              {isl.hasCrystal && (
-                <mesh position={[0, 2.2, 0]}>
-                  <octahedronGeometry args={[1.35, 0]} />
-                  <meshStandardMaterial
-                    color={theme.ringColor}
-                    emissive={theme.ringColor}
-                    emissiveIntensity={0.85}
-                    roughness={0.12}
-                  />
-                </mesh>
-              )}
-            </group>
-          );
-        })}
-      </group>
+      <SkyDome look={look} radius={1400} quality={quality} />
+      {summit ? (
+        <DistantMountains look={look} baseY={-230} scale={2.6} worldY={0} />
+      ) : (
+        <DistantMountains look={look} baseY={-110} />
+      )}
     </group>
   );
+}
+
+/** Raises the far plane for the big vistas (sky dome, ranges, massif). */
+function CameraFar({ far }: { far: number }) {
+  const camera = useThree((s) => s.camera);
+  useEffect(() => {
+    if ((camera as THREE.PerspectiveCamera).far !== far) {
+      (camera as THREE.PerspectiveCamera).far = far;
+      camera.updateProjectionMatrix();
+    }
+  }, [camera, far]);
+  return null;
 }
 
 export function GameCanvas() {
@@ -296,6 +233,7 @@ export function GameCanvas() {
 
   const activePreset = level.isSummitMode ? summitSkyPreset : level.skyPreset;
   const sky = SKY_THEMES[activePreset] || SKY_THEMES.day;
+  const look = SKY_LOOKS[activePreset] || SKY_LOOKS.day;
 
   const graphicsQuality = useGameStore((s) => s.graphicsQuality);
   const gfx = GRAPHICS_PRESETS[graphicsQuality];
@@ -319,7 +257,7 @@ export function GameCanvas() {
       <Canvas
         shadows
         dpr={dpr}
-        camera={{ fov: 52, near: 0.1, far: 420, position: [0, 4, 8] }}
+        camera={{ fov: 52, near: 0.1, far: 1600, position: [0, 4, 8] }}
         gl={{
           antialias: true,
           toneMapping: THREE.ACESFilmicToneMapping,
@@ -340,8 +278,8 @@ export function GameCanvas() {
             the fog is blended in linear HDR before the tone-mapping pass (instead of after
             per-material tone mapping), so it reads stronger; compensate to keep the same look. */}
         <AtmosphereFog
-          color={sky.bgBottom}
-          density={(level.isSummitMode ? 0.0026 : 0.0036) * (gfx.postFX ? 0.5 : 1)}
+          color={look.horizon}
+          density={(level.isSummitMode ? 0.0019 : 0.0036) * (gfx.postFX ? 0.5 : 1)}
         />
 
         {/* High-Res Studio & Skybox IBL Environment for Glass Refraction & PBR reflections */}
@@ -388,17 +326,39 @@ export function GameCanvas() {
           groundColor={sky.bgTop}
         />
 
-        <Sparkles
-          count={gfx.sparkleCount}
-          scale={[38, 18, 78]}
-          position={[0, 2, -28]}
-          size={3.4}
-          speed={0.45}
-          opacity={0.6}
-          color={sky.sparkleColor}
+        <ShaderClock />
+        {graphicsQuality !== 'low' && <RimLight color={look.sun} />}
+        <CameraFar far={1600} />
+        <HorizonEnvironment
+          preset={activePreset}
+          quality={graphicsQuality}
+          summit={!!level.isSummitMode}
         />
-
-        <HorizonEnvironment preset={activePreset} starCount={gfx.starCount} />
+        <CloudSea
+          look={look}
+          y={level.isSummitMode ? -70 : level.killPlaneY - 30}
+          quality={graphicsQuality}
+        />
+        {!level.isSummitMode && look.ocean && graphicsQuality !== 'low' && (
+          <Ocean look={look} y={level.killPlaneY - 95} />
+        )}
+        {level.isSummitMode ? (
+          <SummitWorld
+            quality={graphicsQuality}
+            cloudColor={look.cloudSea}
+            cloudShade={look.ridgeFar}
+          />
+        ) : (
+          <CampaignWorld
+            level={level}
+            preset={activePreset}
+            quality={graphicsQuality}
+            cloudColor={look.cloudSea}
+            cloudShade={look.ridgeFar}
+          />
+        )}
+        <ThemeParticles kind={look.particles} color={look.particleColor} quality={graphicsQuality} />
+        <StormLightning active={activePreset === 'storm'} />
         <ParticleFX />
         <OrbSpeedTrail />
         <GhostOrb />
@@ -413,6 +373,8 @@ export function GameCanvas() {
           >
             <TiltController />
             <MonkeyCamera />
+            {level.isSummitMode && <TerrainCameraGuard quality={graphicsQuality} />}
+            {import.meta.env.DEV && <DevPhotoCamera />}
             <PlayerOrb
               spawnPosition={level.spawnPosition}
               killPlaneY={level.killPlaneY}
