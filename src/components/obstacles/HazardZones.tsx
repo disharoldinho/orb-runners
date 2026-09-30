@@ -4,20 +4,16 @@ import { CuboidCollider, RapierRigidBody, RigidBody } from '@react-three/rapier'
 import * as THREE from 'three';
 import { useGameStore } from '../../store/useGameStore';
 import { KillZoneDef, WindZoneDef } from '../../types/level';
+import { getLavaMaterial } from '../../graphics/fluidMaterials';
 
 /**
  * Kill volume: touching it sends the orb back to its last checkpoint (same flow
  * as falling below the kill plane). Used for lava moats and under shortcuts.
  */
 export function KillZone({ position, size, visual = 'none' }: KillZoneDef) {
-  const lavaRef = useRef<THREE.MeshStandardMaterial>(null);
   const [sx, sy, sz] = size;
-
-  useFrame((state) => {
-    if (lavaRef.current) {
-      lavaRef.current.emissiveIntensity = 1.1 + Math.sin(state.clock.elapsedTime * 2.2) * 0.25;
-    }
-  });
+  const lowQuality = useGameStore((st) => st.graphicsQuality === 'low');
+  const lavaMat = useMemo(() => (visual === 'lava' ? getLavaMaterial() : null), [visual]);
 
   return (
     <RigidBody
@@ -32,17 +28,22 @@ export function KillZone({ position, size, visual = 'none' }: KillZoneDef) {
       }}
     >
       <CuboidCollider args={[sx / 2, sy / 2, sz / 2]} sensor />
-      {visual === 'lava' && (
-        <mesh position={[0, sy / 2 - 0.05, 0]} rotation={[-Math.PI / 2, 0, 0]}>
-          <planeGeometry args={[sx, sz]} />
-          <meshStandardMaterial
-            ref={lavaRef}
-            color="#7c2d12"
-            emissive="#f97316"
-            emissiveIntensity={1.1}
-            roughness={0.6}
-          />
-        </mesh>
+      {lavaMat && (
+        <>
+          <mesh position={[0, sy / 2 - 0.05, 0]} rotation={[-Math.PI / 2, 0, 0]} material={lavaMat}>
+            <planeGeometry args={[sx, sz]} />
+          </mesh>
+          {/* warm under-glow lighting the surrounding rock */}
+          {!lowQuality && (
+            <pointLight
+              position={[0, sy / 2 + 1.5, 0]}
+              color="#ff7a1a"
+              intensity={Math.min(60, sx * sz * 0.08)}
+              distance={Math.max(sx, sz) * 0.9}
+              decay={1.6}
+            />
+          )}
+        </>
       )}
     </RigidBody>
   );
