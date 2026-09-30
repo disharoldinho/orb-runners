@@ -414,6 +414,14 @@ wss.on('connection', (ws) => {
     }
   });
 
+  // Without an 'error' listener, ws re-throws protocol errors (invalid opcode,
+  // bad UTF-8, oversized payload, abrupt socket resets) as an unhandled
+  // EventEmitter 'error', crashing the whole server and every lobby with it.
+  // ws terminates the socket after emitting, so 'close' still runs cleanup.
+  ws.on('error', (err) => {
+    console.warn(`[Orb Runners Summit Server] WebSocket error from ${clientId}: ${err.message}`);
+  });
+
   ws.on('close', () => {
     if (currentRoomCode && rooms.has(currentRoomCode)) {
       const room = rooms.get(currentRoomCode);
