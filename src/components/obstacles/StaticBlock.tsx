@@ -3,6 +3,12 @@ import { RigidBody } from '@react-three/rapier';
 import type { CoefficientCombineRule } from '@dimforge/rapier3d-compat';
 import * as THREE from 'three';
 import { BlockTheme, StaticBlockDef } from '../../types/level';
+import { useGameStore } from '../../store/useGameStore';
+import {
+  getSharedMaterial,
+  getSurfaceMaterial,
+  isNaturalTheme,
+} from '../../graphics/surfaceMaterials';
 
 export const THEME_PALETTES: Record<
   BlockTheme,
@@ -237,98 +243,111 @@ export function StaticBlock({
   const [sx, sy, sz] = size;
   const palette = THEME_PALETTES[theme] || THEME_PALETTES.meadow;
 
-  const checkerTex = useMemo(() => getCheckerTexture(theme, sx, sz), [theme, sx, sz]);
-  const bumpTex = useMemo(() => getTileBumpMap(sx, sz), [sx, sz]);
+  const quality = useGameStore((st) => st.graphicsQuality);
+  const isIce = surface === 'ice';
+  const natural = isNaturalTheme(theme);
+
+  // Shared (per theme/quality) materials: one program + uniform set for hundreds of blocks.
+  const mats = useMemo(() => {
+    const body = getSurfaceMaterial(theme, surface, palette, quality);
+    const trim = getSharedMaterial(
+      `trim|${theme}`,
+      () =>
+        new THREE.MeshStandardMaterial({
+          color: palette.trim,
+          emissive: palette.glow,
+          emissiveIntensity: natural ? 0.55 : 1.1,
+          roughness: 0.2,
+          metalness: 0.5,
+        })
+    );
+    const curb = getSharedMaterial(
+      `curb|${theme}`,
+      () =>
+        new THREE.MeshStandardMaterial({
+          color: palette.rail,
+          emissive: palette.glow,
+          emissiveIntensity: natural ? 0.12 : 0.25,
+          roughness: 0.3,
+        })
+    );
+    // Natural themes: the underside reads as rock (same procedural body material).
+    const hull = natural
+      ? body
+      : getSharedMaterial(
+          'hull|metal',
+          () => new THREE.MeshStandardMaterial({ color: '#0f172a', metalness: 0.7, roughness: 0.3 })
+        );
+    const rail = getSharedMaterial(
+      `rail|${theme}`,
+      () =>
+        new THREE.MeshStandardMaterial({
+          color: palette.rail,
+          roughness: natural ? 0.55 : 0.25,
+          metalness: natural ? 0.1 : 0.4,
+        })
+    );
+    const railGlow = getSharedMaterial(
+      `railglow|${theme}`,
+      () =>
+        new THREE.MeshStandardMaterial({
+          color: palette.glow,
+          emissive: palette.glow,
+          emissiveIntensity: natural ? 1.2 : 1.8,
+        })
+    );
+    return { body, trim, curb, hull, rail, railGlow };
+  }, [theme, surface, palette, quality, natural]);
 
   const showLeftRail = rails === 'both' || rails === 'left';
   const showRightRail = rails === 'both' || rails === 'right';
   const railThickness = 0.24;
 
-  const isIce = surface === 'ice';
+  // NOTE: the mesh list below must stay geometry-identical: the fixed RigidBody derives its
+  // cuboid colliders from these meshes. Only materials are art (shared, procedural).
   const content = (
     <>
-      {/* Main Beveled PBR Floor Block */}
-      <mesh receiveShadow castShadow>
+      {/* Main block: procedural themed tiles on top, rock/panels on the sides */}
+      <mesh receiveShadow castShadow material={mats.body}>
         <boxGeometry args={[sx, sy, sz]} />
-        <meshStandardMaterial
-          map={checkerTex}
-          bumpMap={bumpTex}
-          bumpScale={0.016}
-          roughness={theme === 'ice' || isIce ? 0.08 : theme === 'cyber' ? 0.24 : 0.32}
-          metalness={theme === 'gold' ? 0.65 : theme === 'cyber' ? 0.35 : 0.15}
-        />
       </mesh>
 
-      {/* Glowing Neon Side Trim Frame */}
-      <mesh position={[0, -sy * 0.2, 0]}>
+      {/* Glowing side trim frame */}
+      <mesh position={[0, -sy * 0.2, 0]} material={mats.trim}>
         <boxGeometry args={[sx + 0.1, 0.1, sz + 0.08]} />
-        <meshStandardMaterial
-          color={palette.trim}
-          emissive={palette.glow}
-          emissiveIntensity={1.1}
-          roughness={0.2}
-          metalness={0.5}
-        />
       </mesh>
 
-      {/* Trackmania Stadium Racing Edge Curbs (Left & Right) */}
-      <mesh position={[-sx / 2 + 0.09, sy / 2 + 0.012, 0]} receiveShadow>
+      {/* Edge curbs (left & right) */}
+      <mesh position={[-sx / 2 + 0.09, sy / 2 + 0.012, 0]} receiveShadow material={mats.curb}>
         <boxGeometry args={[0.18, 0.024, sz]} />
-        <meshStandardMaterial
-          color={palette.rail}
-          emissive={palette.glow}
-          emissiveIntensity={0.25}
-          roughness={0.25}
-        />
       </mesh>
-      <mesh position={[sx / 2 - 0.09, sy / 2 + 0.012, 0]} receiveShadow>
+      <mesh position={[sx / 2 - 0.09, sy / 2 + 0.012, 0]} receiveShadow material={mats.curb}>
         <boxGeometry args={[0.18, 0.024, sz]} />
-        <meshStandardMaterial
-          color={palette.rail}
-          emissive={palette.glow}
-          emissiveIntensity={0.25}
-          roughness={0.25}
-        />
       </mesh>
 
-      {/* Architectural Metallic Under-Chassis Hull */}
-      <mesh position={[0, -sy / 2 - 0.18, 0]}>
+      {/* Under-hull (rock for natural themes, metal chassis for stadium themes) */}
+      <mesh position={[0, -sy / 2 - 0.18, 0]} material={mats.hull}>
         <boxGeometry args={[sx * 0.88, 0.34, sz * 0.94]} />
-        <meshStandardMaterial color="#0f172a" metalness={0.7} roughness={0.3} />
       </mesh>
 
-      {/* Optional Left Safety Rail with Glowing Top Strip */}
       {showLeftRail && (
         <group position={[-sx / 2 + railThickness / 2, sy / 2 + railHeight / 2, 0]}>
-          <mesh castShadow receiveShadow>
+          <mesh castShadow receiveShadow material={mats.rail}>
             <boxGeometry args={[railThickness, railHeight, sz]} />
-            <meshStandardMaterial color={palette.rail} roughness={0.25} metalness={0.35} />
           </mesh>
-          <mesh position={[0, railHeight / 2 + 0.02, 0]}>
+          <mesh position={[0, railHeight / 2 + 0.02, 0]} material={mats.railGlow}>
             <boxGeometry args={[railThickness * 0.6, 0.04, sz]} />
-            <meshStandardMaterial
-              color={palette.glow}
-              emissive={palette.glow}
-              emissiveIntensity={1.8}
-            />
           </mesh>
         </group>
       )}
 
-      {/* Optional Right Safety Rail with Glowing Top Strip */}
       {showRightRail && (
         <group position={[sx / 2 - railThickness / 2, sy / 2 + railHeight / 2, 0]}>
-          <mesh castShadow receiveShadow>
+          <mesh castShadow receiveShadow material={mats.rail}>
             <boxGeometry args={[railThickness, railHeight, sz]} />
-            <meshStandardMaterial color={palette.rail} roughness={0.25} metalness={0.35} />
           </mesh>
-          <mesh position={[0, railHeight / 2 + 0.02, 0]}>
+          <mesh position={[0, railHeight / 2 + 0.02, 0]} material={mats.railGlow}>
             <boxGeometry args={[railThickness * 0.6, 0.04, sz]} />
-            <meshStandardMaterial
-              color={palette.glow}
-              emissive={palette.glow}
-              emissiveIntensity={1.8}
-            />
           </mesh>
         </group>
       )}

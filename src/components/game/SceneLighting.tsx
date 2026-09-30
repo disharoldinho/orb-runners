@@ -149,3 +149,32 @@ export function AtmosphereFog({ color, density }: AtmosphereFogProps) {
 
   return null;
 }
+
+/**
+ * Camera-relative back/rim light (no shadows): places a soft light behind and above
+ * the orb as seen from the camera, so the character, orb glass and block edges get a
+ * bright separating rim against the scenery. Medium/High only.
+ */
+export function RimLight({ color }: { color: string }) {
+  const lightRef = useRef<THREE.DirectionalLight>(null);
+  const scene = useThree((s) => s.scene);
+  const tmp = useMemo(() => new THREE.Vector3(), []);
+  useEffect(() => {
+    const light = lightRef.current;
+    if (!light) return;
+    scene.add(light.target);
+    return () => {
+      scene.remove(light.target);
+    };
+  }, [scene]);
+  useFrame(({ camera }) => {
+    const light = lightRef.current;
+    if (!light) return;
+    const [bx, by, bz] = livePhysics.ballPosition;
+    tmp.set(bx - camera.position.x, 0, bz - camera.position.z).normalize();
+    light.position.set(bx + tmp.x * 12, by + 2.2, bz + tmp.z * 12);
+    light.target.position.set(bx, by, bz);
+    light.target.updateMatrixWorld();
+  });
+  return <directionalLight ref={lightRef} color={color} intensity={0.9} />;
+}

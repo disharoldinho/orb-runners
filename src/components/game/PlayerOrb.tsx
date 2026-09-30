@@ -5,6 +5,7 @@ import * as THREE from 'three';
 import { livePhysics, useGameStore } from '../../store/useGameStore';
 import { OrbShellStyle } from '../../types/avatar';
 import { GRAPHICS_PRESETS } from '../../graphics/quality';
+import { makeFresnelMaterial } from '../../graphics/fxMaterials';
 import { CharacterModel } from './CharacterModel';
 import { spawnParticleBurst, spawnShockwave } from './ParticleFX';
 
@@ -46,16 +47,28 @@ export function OrbShell({ style, primaryColor }: OrbShellProps) {
       ? '#ffe4e6'
       : '#f0f9ff';
 
+  // Transmission re-renders the whole opaque scene (terrain, scenery) into an extra
+  // target every frame: High only. Low/Medium get a lighter non-refractive glass;
+  // every tier gets the additive fresnel rim below.
+  const lowQuality = useGameStore((s) => s.graphicsQuality !== 'high');
+  const rimMat = useMemo(() => makeFresnelMaterial(ringColor, 2.4, 0.85), [ringColor]);
+  useEffect(() => () => rimMat.dispose(), [rimMat]);
+
   return (
     <group>
+      {/* Fresnel rim glow: bright glass edge + soft sky reflection band */}
+      <mesh scale={1.012} material={rimMat} renderOrder={2}>
+        <sphereGeometry args={[ORB_RADIUS, 40, 28]} />
+      </mesh>
       {/* Primary Optical Refractive Fresnel Glass Sphere */}
       <mesh>
         <sphereGeometry args={[ORB_RADIUS, 48, 48]} />
         <meshPhysicalMaterial
+          key={lowQuality ? 'glass-low' : 'glass'}
           color={shellTint}
           transparent
-          opacity={0.34}
-          transmission={0.88}
+          opacity={lowQuality ? 0.22 : 0.34}
+          transmission={lowQuality ? 0 : 0.88}
           ior={1.45}
           thickness={0.38}
           roughness={0.03}
