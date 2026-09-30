@@ -78,17 +78,24 @@ export function TiltController() {
       keys.current[e.code] = false;
     };
 
-    const onBlur = () => {
+    const clearKeys = () => {
       keys.current = {};
+    };
+
+    // Mobile app-switch / tab hide often skips window.blur; visibilitychange is reliable.
+    const onVisibility = () => {
+      if (document.visibilityState === 'hidden') clearKeys();
     };
 
     window.addEventListener('keydown', onKeyDown);
     window.addEventListener('keyup', onKeyUp);
-    window.addEventListener('blur', onBlur);
+    window.addEventListener('blur', clearKeys);
+    document.addEventListener('visibilitychange', onVisibility);
     return () => {
       window.removeEventListener('keydown', onKeyDown);
       window.removeEventListener('keyup', onKeyUp);
-      window.removeEventListener('blur', onBlur);
+      window.removeEventListener('blur', clearKeys);
+      document.removeEventListener('visibilitychange', onVisibility);
     };
   }, [startRun, respawnAtCheckpoint]);
 
