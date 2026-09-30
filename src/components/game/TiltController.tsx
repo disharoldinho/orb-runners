@@ -3,6 +3,7 @@ import { useFrame } from '@react-three/fiber';
 import { useRapier } from '@react-three/rapier';
 import * as THREE from 'three';
 import { livePhysics, useGameStore } from '../../store/useGameStore';
+import { touchInput } from '../../input/touchInput';
 
 /** Maximum board tilt angle in radians (~17.5 degrees for smooth, controllable precision) */
 export const MAX_TILT_RAD = THREE.MathUtils.degToRad(17.5);
@@ -110,6 +111,17 @@ export function TiltController() {
       if (k['KeyD'] || k['ArrowRight']) targetRollInput += 1;
       if (k['KeyA'] || k['ArrowLeft']) targetRollInput -= 1;
 
+      // Mobile: on-screen joystick uses the same analog path as the gamepad left stick
+      const [touchX, touchY] = applyRadialDeadzone(touchInput.stickX, touchInput.stickY, 0.08);
+      targetPitchInput -= touchY;
+      targetRollInput += touchX;
+
+      // Mobile: device-tilt steering (calibrated, deadzoned and low-passed in touchInput.ts)
+      if (touchInput.gyroActive) {
+        targetPitchInput -= touchInput.gyroY;
+        targetRollInput += touchInput.gyroX;
+      }
+
       if (navigator.getGamepads) {
         const pads = navigator.getGamepads();
         let pad: Gamepad | null = null;
@@ -205,6 +217,16 @@ export function TiltController() {
     world.gravity.x = worldGx;
     world.gravity.y = localGy;
     world.gravity.z = worldGz;
+
+    // Rapier puts a resting body to sleep after ~2s, and changing world.gravity
+    // does not wake it, so a player who waits after "GO" (common on touch, where
+    // you look before you steer) would tilt the board with the orb frozen.
+    // Wake sleeping dynamic bodies only while the board is actually tilted.
+    if (playPhase === 'playing' && Math.abs(pitch) + Math.abs(roll) > 0.002) {
+      world.forEachRigidBody((body) => {
+        if (body.isDynamic() && body.isSleeping()) body.wakeUp();
+      });
+    }
   });
 
   return null;

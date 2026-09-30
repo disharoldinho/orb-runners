@@ -169,6 +169,8 @@ interface GameStore {
 
   // Actions
   setScreen: (screen: ScreenState) => void;
+  /** Leave the current run (campaign or Summit lobby) and go back to the main menu. */
+  exitToMenu: () => void;
   selectLevel: (levelId: number) => void;
   startRun: () => void;
   respawnAtCheckpoint: () => void;
@@ -249,6 +251,10 @@ export const useGameStore = create<GameStore>((set, get) => ({
   summitBestAltitudeM: loadSavedSummitPeak(),
 
   setScreen: (screen) => set({ screen }),
+
+  // Unmounting the game canvas closes the Summit websocket (the server drops the
+  // climber on 'close'); also clear the remote climbers so no stale ghosts linger.
+  exitToMenu: () => set({ screen: 'menu', remoteClimbers: [] }),
 
   selectLevel: (levelId) => {
     const map = getLevelById(levelId);
