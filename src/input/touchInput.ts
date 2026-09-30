@@ -163,3 +163,27 @@ export function recalibrateGyro() {
   touchInput.gyroX = 0;
   touchInput.gyroY = 0;
 }
+
+/**
+ * When the tab/app is backgrounded the last stick/gyro sample would keep tilting
+ * the board (phones especially — orientation keeps firing in a pocket). Zero
+ * deflections on hide; on resume, re-zero gyro so the new resting pose is level.
+ */
+function onVisibilityChange() {
+  if (typeof document === 'undefined') return;
+  if (document.visibilityState === 'hidden') {
+    touchInput.stickX = 0;
+    touchInput.stickY = 0;
+    touchInput.gyroX = 0;
+    touchInput.gyroY = 0;
+    lastEventTime = 0;
+    return;
+  }
+  if (touchInput.gyroActive) {
+    recalibrateGyro();
+  }
+}
+
+if (typeof document !== 'undefined') {
+  document.addEventListener('visibilitychange', onVisibilityChange);
+}

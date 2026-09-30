@@ -28,6 +28,7 @@ const STORAGE_KEY_PROGRESS = 'orb_runners_progress_v1';
 const STORAGE_KEY_GHOSTS = 'orb_runners_ghosts_v1';
 const STORAGE_KEY_SUMMIT_PEAK = 'orb_runners_summit_peak_v1';
 const STORAGE_KEY_GRAPHICS = 'orb_runners_graphics_v1';
+const STORAGE_KEY_MUTE = 'orb_runners_mute_v1';
 
 export function getLevelById(levelId: number): LevelData {
   if (levelId === SUMMIT_LEVEL_ID) return SUMMIT_MAP;
@@ -102,6 +103,16 @@ function loadSavedGraphicsQuality(): GraphicsQuality {
     // ignore storage errors
   }
   return DEFAULT_GRAPHICS_QUALITY;
+}
+
+function loadSavedMute(): boolean {
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY_MUTE);
+    return raw === '1' || raw === 'true';
+  } catch {
+    // ignore storage errors
+  }
+  return false;
 }
 
 /**
@@ -208,6 +219,9 @@ const MEDAL_RANK: Record<MedalTier, number> = {
   author: 4,
 };
 
+const initialSoundMuted = loadSavedMute();
+soundFX.muted = initialSoundMuted;
+
 export const useGameStore = create<GameStore>((set, get) => ({
   screen: 'menu',
   currentLevelId: 1,
@@ -228,7 +242,7 @@ export const useGameStore = create<GameStore>((set, get) => ({
 
   lastEarnedMedal: 'none',
   isNewRecord: false,
-  soundMuted: false,
+  soundMuted: initialSoundMuted,
   showGhost: true,
   graphicsQuality: loadSavedGraphicsQuality(),
   gamepadConnected: false,
@@ -571,6 +585,11 @@ export const useGameStore = create<GameStore>((set, get) => ({
   toggleMute: () => {
     const nextMuted = !get().soundMuted;
     soundFX.muted = nextMuted;
+    try {
+      localStorage.setItem(STORAGE_KEY_MUTE, nextMuted ? '1' : '0');
+    } catch {
+      // ignore storage errors
+    }
     set({ soundMuted: nextMuted });
   },
 
