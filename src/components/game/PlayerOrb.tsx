@@ -47,9 +47,10 @@ export function OrbShell({ style, primaryColor }: OrbShellProps) {
       ? '#ffe4e6'
       : '#f0f9ff';
 
-  // Transmission renders an extra scene pass: Medium/High only. Low gets a lighter
-  // non-refractive glass; every tier gets the additive fresnel rim below.
-  const lowQuality = useGameStore((s) => s.graphicsQuality === 'low');
+  // Transmission re-renders the whole opaque scene (terrain, scenery) into an extra
+  // target every frame: High only. Low/Medium get a lighter non-refractive glass;
+  // every tier gets the additive fresnel rim below.
+  const lowQuality = useGameStore((s) => s.graphicsQuality !== 'high');
   const rimMat = useMemo(() => makeFresnelMaterial(ringColor, 2.4, 0.85), [ringColor]);
   useEffect(() => () => rimMat.dispose(), [rimMat]);
 

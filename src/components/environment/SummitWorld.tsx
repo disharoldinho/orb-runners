@@ -16,8 +16,8 @@ import { CloudPuffs, Puff } from './CloudPuffs';
 import { DecorInstance, InstancedDecor } from './InstancedDecor';
 
 const TERRAIN_CELL: Record<GraphicsQuality, number> = { low: 2.2, medium: 1.6, high: 1.25 };
-const DECOR_DENSITY: Record<GraphicsQuality, number> = { low: 0.3, medium: 0.65, high: 1 };
-const DECOR_NEAR: Record<GraphicsQuality, number> = { low: 70, medium: 120, high: 170 };
+const DECOR_DENSITY: Record<GraphicsQuality, number> = { low: 0.3, medium: 0.55, high: 1 };
+const DECOR_NEAR: Record<GraphicsQuality, number> = { low: 70, medium: 100, high: 170 };
 const DECOR_FAR: Record<GraphicsQuality, number> = { low: 260, medium: 420, high: 600 };
 const PUFFS: Record<GraphicsQuality, number> = { low: 26, medium: 55, high: 80 };
 
