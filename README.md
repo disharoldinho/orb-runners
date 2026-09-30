@@ -2,7 +2,7 @@
 
 A 3D arcade physics platformer and multiplayer vertical climb built with **React 18, TypeScript, Vite, Three.js (`@react-three/fiber`, `@react-three/drei`), Rapier 3D Physics (`@react-three/rapier`), and Zustand**.
 
-Inspired by *Super Monkey Ball* (board-tilt gravity physics with an upright decoupled 3D character inside a refractive glass orb), *Trackmania* (millisecond speedrun timer, Author/Gold/Silver/Bronze medals, Personal Best Ghost replays, sector checkpoint splits, and turbo boost chevrons), and *PEAK* (**Reach the Summit**: a 25-stage, 5-phase, 250m vertical multiplayer mountain odyssey with Public & Private Lobbies).
+Inspired by *Super Monkey Ball* (board-tilt gravity physics with an upright decoupled 3D character inside a refractive glass orb), *Trackmania* (millisecond speedrun timer, Author/Gold/Silver/Bronze medals, Personal Best Ghost replays, sector checkpoint splits, and turbo boost chevrons), and *PEAK* (**Reach the Summit**: a 9-stage, 250m spiral mountain climb (each stage with its own theme and mechanic) with Public & Private Lobbies).
 
 ---
 

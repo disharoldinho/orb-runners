@@ -14,7 +14,9 @@ export function CheckpointGate({
   rotation = [0, 0, 0],
   respawnYaw = 0,
   label,
+  width = 3.7,
 }: CheckpointDef) {
+  const half = width / 2;
   const isCrossed = useGameStore((s) => s.crossedCheckpoints.includes(id));
   const crossCheckpoint = useGameStore((s) => s.crossCheckpoint);
   const curtainRef = useRef<THREE.Mesh>(null);
@@ -42,12 +44,12 @@ export function CheckpointGate({
       colliders={false}
     >
       {/* Left & Right Gantry Pillars (Physical Colliders outside track width) */}
-      <CuboidCollider args={[0.22, 1.5, 0.22]} position={[-1.85, 1.5, 0]} />
-      <CuboidCollider args={[0.22, 1.5, 0.22]} position={[1.85, 1.5, 0]} />
+      <CuboidCollider args={[0.22, 1.5, 0.22]} position={[-half, 1.5, 0]} />
+      <CuboidCollider args={[0.22, 1.5, 0.22]} position={[half, 1.5, 0]} />
 
       {/* Sensor Trigger Zone across the Archway */}
       <CuboidCollider
-        args={[1.65, 1.4, 0.45]}
+        args={[half - 0.2, 1.4, 0.45]}
         position={[0, 1.4, 0]}
         sensor
         onIntersectionEnter={({ other }) => {
@@ -73,7 +75,7 @@ export function CheckpointGate({
       />
 
       {/* Left & Right Sleek Stadium Pillars */}
-      {[-1.85, 1.85].map((xPos, idx) => (
+      {[-half, half].map((xPos, idx) => (
         <group key={idx} position={[xPos, 1.5, 0]}>
           <mesh castShadow>
             <boxGeometry args={[0.32, 3.0, 0.36]} />
@@ -93,11 +95,11 @@ export function CheckpointGate({
 
       {/* Top Trackmania Sector Gantry Beam */}
       <mesh position={[0, 3.05, 0]} castShadow>
-        <boxGeometry args={[4.15, 0.48, 0.44]} />
+        <boxGeometry args={[width + 0.45, 0.48, 0.44]} />
         <meshStandardMaterial color="#0f172a" metalness={0.85} roughness={0.2} />
       </mesh>
       <mesh position={[0, 3.05, 0]}>
-        <boxGeometry args={[4.22, 0.1, 0.48]} />
+        <boxGeometry args={[width + 0.52, 0.1, 0.48]} />
         <meshStandardMaterial
           color={activeColor}
           emissive={activeColor}
@@ -108,7 +110,7 @@ export function CheckpointGate({
       {/* Digital Sector Sign */}
       <Text
         position={[0, 3.05, 0.25]}
-        fontSize={label ? 0.22 : 0.26}
+        fontSize={label ? (width > 6 ? 0.34 : 0.22) : 0.26}
         color={isCrossed ? '#6ee7b7' : '#e0f2fe'}
         anchorX="center"
         anchorY="middle"
@@ -126,7 +128,7 @@ export function CheckpointGate({
 
       {/* Holographic Laser Curtain */}
       <mesh ref={curtainRef} position={[0, 1.42, 0]}>
-        <planeGeometry args={[3.35, 2.75]} />
+        <planeGeometry args={[width - 0.35, 2.75]} />
         <meshBasicMaterial
           color={activeColor}
           transparent
@@ -138,7 +140,7 @@ export function CheckpointGate({
 
       {/* Floor Threshold Strip */}
       <mesh position={[0, 0.03, 0]}>
-        <boxGeometry args={[3.4, 0.04, 0.28]} />
+        <boxGeometry args={[width - 0.3, 0.04, 0.28]} />
         <meshStandardMaterial
           color={activeColor}
           emissive={activeColor}

@@ -358,6 +358,16 @@ export const useGameStore = create<GameStore>((set, get) => ({
 
     const map = getLevelById(currentLevelId);
     const totalCheckpoints = map.checkpoints?.length ?? 1;
+
+    // Sequential maps (Summit): a gate only counts if it's the next one in order.
+    if (map.sequentialCheckpoints && order !== crossedCheckpoints.length + 1) {
+      set({
+        checkpointWarningMessage: `Reach ${
+          map.isSummitMode ? 'Camp' : 'Checkpoint'
+        } ${crossedCheckpoints.length + 1} first!`,
+      });
+      return;
+    }
     const splitTimeMs = Math.round(elapsedMs);
 
     // Compare against saved Personal Best checkpoint split
@@ -397,7 +407,9 @@ export const useGameStore = create<GameStore>((set, get) => ({
     const map = getLevelById(currentLevelId);
     const total = map.checkpoints?.length ?? 0;
     set({
-      checkpointWarningMessage: `Cross all Checkpoints first! (${crossedCheckpoints.length}/${total})`,
+      checkpointWarningMessage: map.isSummitMode
+        ? `Pass every Base Camp first! (${crossedCheckpoints.length}/${total})`
+        : `Cross all Checkpoints first! (${crossedCheckpoints.length}/${total})`,
     });
   },
 
@@ -448,7 +460,8 @@ export const useGameStore = create<GameStore>((set, get) => ({
     if (playPhase !== 'playing') return;
 
     const map = getLevelById(currentLevelId);
-    const requiredCheckpoints = map.isSummitMode ? 0 : (map.checkpoints?.length ?? 0);
+    const requiredCheckpoints =
+      map.isSummitMode && !map.sequentialCheckpoints ? 0 : (map.checkpoints?.length ?? 0);
     if (crossedCheckpoints.length < requiredCheckpoints) {
       notifyMissedCheckpoint();
       return;

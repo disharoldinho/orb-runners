@@ -1,6 +1,10 @@
 import { useRef } from 'react';
-import { useFrame } from '@react-three/fiber';
-import { CylinderCollider, RapierRigidBody, RigidBody } from '@react-three/rapier';
+import {
+  CylinderCollider,
+  RapierRigidBody,
+  RigidBody,
+  useBeforePhysicsStep,
+} from '@react-three/rapier';
 import * as THREE from 'three';
 import { useGameStore } from '../../store/useGameStore';
 import { SwitchBridgeDef } from '../../types/level';
@@ -19,10 +23,11 @@ export function ToggleSwitch({
   const bridgeBodyRef = useRef<RapierRigidBody>(null);
   const currentBridgeY = useRef(bridgePosition[1] - 6.5);
 
-  useFrame((_, delta) => {
+  // Raise/lower the bridge per physics sub-step (smooth at any frame rate).
+  useBeforePhysicsStep((world) => {
     const rb = bridgeBodyRef.current;
     if (!rb) return;
-    const dt = Math.min(delta, 0.05);
+    const dt = world.timestep;
 
     const targetY = isActivated ? bridgePosition[1] : bridgePosition[1] - 6.5;
     currentBridgeY.current = THREE.MathUtils.lerp(

@@ -1946,3 +1946,19 @@ button:active:not(:disabled) {
   }
 }
 
+
+/* Summit: current stage's signature challenge under the stage title */
+.summit-challenge-line {
+  margin-top: 4px;
+  padding-left: 8px;
+  border-left: 3px solid #fbbf24;
+  font-size: 0.72rem;
+  line-height: 1.3;
+  color: rgba(226, 232, 240, 0.85);
+  max-width: 300px;
+}
+@media (max-width: 760px) {
+  .summit-challenge-line {
+    display: none;
+  }
+}

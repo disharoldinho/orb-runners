@@ -1,6 +1,5 @@
 import { useRef } from 'react';
-import { useFrame } from '@react-three/fiber';
-import { RapierRigidBody, RigidBody } from '@react-three/rapier';
+import { RapierRigidBody, RigidBody, useBeforePhysicsStep } from '@react-three/rapier';
 import * as THREE from 'three';
 import { RotatingHazardDef } from '../../types/level';
 
@@ -19,10 +18,11 @@ export function RotatingHazard({
   const barColor =
     color || (type === 'hazard' ? '#ef4444' : type === 'cross-bridge' ? '#38bdf8' : '#a855f7');
 
-  useFrame((_, delta) => {
+  // Rotate per physics sub-step so the bar sweeps smoothly regardless of frame rate.
+  useBeforePhysicsStep((world) => {
     const rb = bodyRef.current;
     if (!rb) return;
-    const dt = Math.min(delta, 0.05);
+    const dt = world.timestep;
 
     eulerRef.current.x += angularVelocity[0] * dt;
     eulerRef.current.y += angularVelocity[1] * dt;
