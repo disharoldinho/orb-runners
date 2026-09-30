@@ -1,16 +1,26 @@
 import { Suspense, useEffect, useMemo, useRef, useState } from 'react';
 import { Canvas, useFrame } from '@react-three/fiber';
-import { Environment, Lightformer, SoftShadows, Sparkles, Stars } from '@react-three/drei';
+import {
+  Environment,
+  Lightformer,
+  PerformanceMonitor,
+  SoftShadows,
+  Sparkles,
+  Stars,
+} from '@react-three/drei';
 import { Physics } from '@react-three/rapier';
 import * as THREE from 'three';
 import { getSummitStageByCamps } from '../../levels/summitMap';
 import { getLevelById, livePhysics, useGameStore } from '../../store/useGameStore';
+import { GRAPHICS_PRESETS } from '../../graphics/quality';
 import { LevelData, SkyPreset } from '../../types/level';
 import { GhostOrb } from './GhostOrb';
 import { MonkeyCamera } from './MonkeyCamera';
 import { OrbSpeedTrail } from './OrbSpeedTrail';
 import { ParticleFX } from './ParticleFX';
 import { PlayerOrb } from './PlayerOrb';
+import { PostFX } from './PostFX';
+import { AtmosphereFog, SunLight } from './SceneLighting';
 import { StageBuilder } from './StageBuilder';
 import { SummitMultiplayer } from './SummitMultiplayer';
 import { TiltController } from './TiltController';
@@ -25,7 +35,6 @@ const SKY_THEMES: Record<
     islandRock: string;
     sunColor: string;
     sparkleColor: string;
-    fogColor: string;
   }
 > = {
   day: {
@@ -36,7 +45,6 @@ const SKY_THEMES: Record<
     islandRock: '#334155',
     sunColor: '#fef08a',
     sparkleColor: '#ffffff',
-    fogColor: '#38bdf8',
   },
   sunset: {
     bgTop: '#3b0764',
@@ -46,7 +54,6 @@ const SKY_THEMES: Record<
     islandRock: '#451a03',
     sunColor: '#fde047',
     sparkleColor: '#fed7aa',
-    fogColor: '#7c2d12',
   },
   neon: {
     bgTop: '#050811',
@@ -56,7 +63,6 @@ const SKY_THEMES: Record<
     islandRock: '#0f172a',
     sunColor: '#f72585',
     sparkleColor: '#00f5d4',
-    fogColor: '#0f172a',
   },
   aurora: {
     bgTop: '#022c22',
@@ -66,7 +72,6 @@ const SKY_THEMES: Record<
     islandRock: '#1e293b',
     sunColor: '#6ee7b7',
     sparkleColor: '#34d399',
-    fogColor: '#064e3b',
   },
   citadel: {
     bgTop: '#090d16',
@@ -76,7 +81,6 @@ const SKY_THEMES: Record<
     islandRock: '#18181b',
     sunColor: '#fde047',
     sparkleColor: '#fde047',
-    fogColor: '#1c1917',
   },
   // --- Summit stage skies ---
   forest: {
@@ -87,7 +91,6 @@ const SKY_THEMES: Record<
     islandRock: '#422006',
     sunColor: '#fef9c3',
     sparkleColor: '#d9f99d',
-    fogColor: '#3f6212',
   },
   cave: {
     bgTop: '#0b0618',
@@ -97,7 +100,6 @@ const SKY_THEMES: Record<
     islandRock: '#1e1b4b',
     sunColor: '#e9d5ff',
     sparkleColor: '#f0abfc',
-    fogColor: '#2e1065',
   },
   desert: {
     bgTop: '#c2410c',
@@ -107,7 +109,6 @@ const SKY_THEMES: Record<
     islandRock: '#78350f',
     sunColor: '#fff7ed',
     sparkleColor: '#fed7aa',
-    fogColor: '#fdba74',
   },
   glacier: {
     bgTop: '#0c4a6e',
@@ -117,7 +118,6 @@ const SKY_THEMES: Record<
     islandRock: '#475569',
     sunColor: '#f0f9ff',
     sparkleColor: '#ffffff',
-    fogColor: '#bae6fd',
   },
   gale: {
     bgTop: '#1e3a8a',
@@ -127,7 +127,6 @@ const SKY_THEMES: Record<
     islandRock: '#1e293b',
     sunColor: '#e0e7ff',
     sparkleColor: '#e2e8f0',
-    fogColor: '#94a3b8',
   },
   volcano: {
     bgTop: '#1c0a05',
@@ -137,7 +136,6 @@ const SKY_THEMES: Record<
     islandRock: '#0c0a09',
     sunColor: '#fdba74',
     sparkleColor: '#fb923c',
-    fogColor: '#431407',
   },
   storm: {
     bgTop: '#0f172a',
@@ -147,7 +145,6 @@ const SKY_THEMES: Record<
     islandRock: '#0f172a',
     sunColor: '#cffafe',
     sparkleColor: '#a5f3fc',
-    fogColor: '#1e293b',
   },
   summit: {
     bgTop: '#1e1b4b',
@@ -157,11 +154,16 @@ const SKY_THEMES: Record<
     islandRock: '#a16207',
     sunColor: '#fff7d6',
     sparkleColor: '#fde68a',
-    fogColor: '#fde68a',
   },
 };
 
-function HorizonEnvironment({ preset }: { preset: LevelData['skyPreset'] }) {
+function HorizonEnvironment({
+  preset,
+  starCount,
+}: {
+  preset: LevelData['skyPreset'];
+  starCount: number;
+}) {
   const horizonRef = useRef<THREE.Group>(null);
   const outerOrbitalRef = useRef<THREE.Group>(null);
   const theme = SKY_THEMES[preset] || SKY_THEMES.day;
@@ -207,41 +209,44 @@ function HorizonEnvironment({ preset }: { preset: LevelData['skyPreset'] }) {
       new THREE.Euler(pitch * 0.42, 0, -roll * 0.36, 'YXZ')
     );
     const targetQ = qYaw.multiply(qTilt).multiply(qYawInv);
-    horizonRef.current.quaternion.slerp(targetQ, 0.15);
+    // Frame-rate independent follow: equivalent to the previous fixed 0.15/frame
+    // slerp at 60 fps (1 - 0.85^60 per second => rate = -60 * ln(0.85) ~= 9.75/s).
+    const dt = Math.min(delta, 0.05);
+    horizonRef.current.quaternion.slerp(targetQ, 1 - Math.exp(-9.75 * dt));
   });
 
   return (
     <group ref={horizonRef}>
-      <Stars radius={125} depth={50} count={2200} factor={4} saturation={0.6} fade speed={1.2} />
+      <Stars radius={125} depth={50} count={starCount} factor={4} saturation={0.6} fade speed={1.2} />
 
       {/* Upgraded Celestial Sun & Volumetric-Style Corona Glow Rings */}
       <group position={[0, 34, -135]}>
         <mesh>
           <sphereGeometry args={[14, 32, 32]} />
-          <meshBasicMaterial color={theme.sunColor} />
+          <meshBasicMaterial color={theme.sunColor} fog={false} />
         </mesh>
         <mesh>
           <sphereGeometry args={[17.5, 32, 32]} />
-          <meshBasicMaterial color={theme.sunColor} transparent opacity={0.22} />
+          <meshBasicMaterial color={theme.sunColor} transparent opacity={0.22} fog={false} />
         </mesh>
         <mesh rotation={[Math.PI / 3, 0.3, 0]}>
           <torusGeometry args={[22, 0.5, 12, 64]} />
-          <meshBasicMaterial color={theme.ringColor} transparent opacity={0.65} />
+          <meshBasicMaterial color={theme.ringColor} transparent opacity={0.65} fog={false} />
         </mesh>
         <mesh rotation={[-Math.PI / 4, -0.2, 0]}>
           <torusGeometry args={[28, 0.28, 12, 64]} />
-          <meshBasicMaterial color={theme.sunColor} transparent opacity={0.4} />
+          <meshBasicMaterial color={theme.sunColor} transparent opacity={0.4} fog={false} />
         </mesh>
       </group>
 
       {/* True-Horizon Equatorial Reference Rings */}
       <mesh rotation={[Math.PI / 2, 0, 0]}>
         <torusGeometry args={[95, 0.38, 10, 96]} />
-        <meshBasicMaterial color={theme.ringColor} transparent opacity={0.45} />
+        <meshBasicMaterial color={theme.ringColor} transparent opacity={0.45} fog={false} />
       </mesh>
       <mesh position={[0, -16, 0]} rotation={[Math.PI / 2, 0, 0]}>
         <torusGeometry args={[78, 0.24, 10, 96]} />
-        <meshBasicMaterial color={theme.ringColor} transparent opacity={0.28} />
+        <meshBasicMaterial color={theme.ringColor} transparent opacity={0.28} fog={false} />
       </mesh>
 
       {/* Multi-Tiered 3D Floating Sky Islands */}
@@ -295,6 +300,17 @@ export function GameCanvas() {
   const activePreset = level.isSummitMode ? summitSkyPreset : level.skyPreset;
   const sky = SKY_THEMES[activePreset] || SKY_THEMES.day;
 
+  const graphicsQuality = useGameStore((s) => s.graphicsQuality);
+  const gfx = GRAPHICS_PRESETS[graphicsQuality];
+
+  // Adaptive resolution: PerformanceMonitor lowers `perfFactor` when the frame
+  // rate drops, scaling the DPR between the tier's min and max.
+  const [perfFactor, setPerfFactor] = useState(1);
+  const deviceDpr = typeof window !== 'undefined' ? window.devicePixelRatio || 1 : 1;
+  const maxDpr = Math.min(deviceDpr, gfx.maxDpr);
+  const minDpr = Math.min(maxDpr, gfx.minDpr);
+  const dpr = Math.round((minDpr + (maxDpr - minDpr) * perfFactor) * 100) / 100;
+
   return (
     <div
       className="game-canvas-wrapper"
@@ -305,6 +321,7 @@ export function GameCanvas() {
     >
       <Canvas
         shadows
+        dpr={dpr}
         camera={{ fov: 52, near: 0.1, far: 420, position: [0, 4, 8] }}
         gl={{
           antialias: true,
@@ -312,14 +329,26 @@ export function GameCanvas() {
           toneMappingExposure: 1.15,
         }}
       >
-        {/* Percentage-Closer Soft Shadows for smooth penumbra edges */}
-        <SoftShadows size={18} samples={16} focus={0.5} />
+        <PerformanceMonitor
+          factor={1}
+          flipflops={3}
+          onChange={({ factor }) => setPerfFactor(factor)}
+          onFallback={() => setPerfFactor(0)}
+        />
 
-        {/* Subtle Atmospheric Depth Fog */}
-        <fogExp2 attach="fog" args={[sky.fogColor, level.isSummitMode ? 0.0014 : 0.0028]} />
+        {/* Percentage-Closer Soft Shadows (High only: patches every lit shader) */}
+        {gfx.softShadows && <SoftShadows size={18} samples={12} focus={0.5} />}
 
-        {/* Upgraded High-Res Studio & Skybox IBL Environment for Glass Refraction */}
-        <Environment resolution={512}>
+        {/* Atmospheric depth fog tinted to the sky gradient's horizon colour. With post-FX
+            the fog is blended in linear HDR before the tone-mapping pass (instead of after
+            per-material tone mapping), so it reads stronger; compensate to keep the same look. */}
+        <AtmosphereFog
+          color={sky.bgBottom}
+          density={(level.isSummitMode ? 0.0026 : 0.0036) * (gfx.postFX ? 0.5 : 1)}
+        />
+
+        {/* High-Res Studio & Skybox IBL Environment for Glass Refraction & PBR reflections */}
+        <Environment resolution={gfx.envResolution}>
           <group rotation={[-Math.PI / 3, 0, 1]}>
             <Lightformer
               form="circle"
@@ -355,23 +384,15 @@ export function GameCanvas() {
           </group>
         </Environment>
 
-        <ambientLight intensity={0.58} />
-        <directionalLight
-          castShadow
-          position={[26, 52, 24]}
-          intensity={1.65}
-          color={sky.sunColor}
-          shadow-mapSize={[2048, 2048]}
-          shadow-camera-left={-48}
-          shadow-camera-right={48}
-          shadow-camera-top={48}
-          shadow-camera-bottom={-48}
-          shadow-bias={-0.0005}
+        <SunLight
+          preset={gfx}
+          sunColor={sky.sunColor}
+          skyColor={sky.sunColor}
+          groundColor={sky.bgTop}
         />
-        <hemisphereLight args={[sky.sunColor, sky.bgTop, 0.55]} />
 
         <Sparkles
-          count={140}
+          count={gfx.sparkleCount}
           scale={[38, 18, 78]}
           position={[0, 2, -28]}
           size={3.4}
@@ -380,7 +401,7 @@ export function GameCanvas() {
           color={sky.sparkleColor}
         />
 
-        <HorizonEnvironment preset={activePreset} />
+        <HorizonEnvironment preset={activePreset} starCount={gfx.starCount} />
         <ParticleFX />
         <OrbSpeedTrail />
         <GhostOrb />
@@ -403,6 +424,8 @@ export function GameCanvas() {
             <StageBuilder level={level} />
           </Physics>
         </Suspense>
+
+        {gfx.postFX && <PostFX preset={gfx} />}
       </Canvas>
     </div>
   );

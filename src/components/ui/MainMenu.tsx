@@ -12,12 +12,14 @@ import {
   Mountain,
   Users,
   Globe,
+  Monitor,
 } from 'lucide-react';
 import { useRef } from 'react';
 import * as THREE from 'three';
 import { MAPS } from '../../levels/maps';
 import { SUMMIT_LEVEL_ID } from '../../levels/summitMap';
 import { useGameStore } from '../../store/useGameStore';
+import { GRAPHICS_QUALITY_LABEL, GRAPHICS_QUALITY_ORDER } from '../../graphics/quality';
 import { CharacterModel } from '../game/CharacterModel';
 import { OrbShell } from '../game/PlayerOrb';
 import { formatTimeMs } from './HUD';
@@ -62,6 +64,8 @@ export function MainMenu() {
   const setScreen = useGameStore((s) => s.setScreen);
   const openSummitLobbyModal = useGameStore((s) => s.openSummitLobbyModal);
   const launchSummitClimb = useGameStore((s) => s.launchSummitClimb);
+  const graphicsQuality = useGameStore((s) => s.graphicsQuality);
+  const setGraphicsQuality = useGameStore((s) => s.setGraphicsQuality);
   const totalMedals = useGameStore((s) => s.getTotalMedalsCount());
   const authorMedals = useGameStore((s) => s.getAuthorMedalsCount());
 
@@ -142,6 +146,26 @@ export function MainMenu() {
               <strong>Keys 1–4 (Summit Mode):</strong> Pop live 3D Emotes (👋 🔥 😱 👑)
             </li>
           </ul>
+        </div>
+
+        <div className="graphics-quality-box">
+          <span className="graphics-quality-label">
+            <Monitor size={14} />
+            Graphics
+          </span>
+          <div className="graphics-quality-toggle" role="radiogroup" aria-label="Graphics quality">
+            {GRAPHICS_QUALITY_ORDER.map((q) => (
+              <button
+                key={q}
+                role="radio"
+                aria-checked={graphicsQuality === q}
+                className={graphicsQuality === q ? 'active' : ''}
+                onClick={() => setGraphicsQuality(q)}
+              >
+                {GRAPHICS_QUALITY_LABEL[q]}
+              </button>
+            ))}
+          </div>
         </div>
       </aside>
 

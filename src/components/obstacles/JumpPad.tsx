@@ -123,7 +123,7 @@ export function JumpPad({
           <meshStandardMaterial
             color={color}
             emissive={color}
-            emissiveIntensity={0.65}
+            emissiveIntensity={1.0}
             roughness={0.2}
           />
         </mesh>
@@ -136,7 +136,7 @@ export function JumpPad({
           <meshStandardMaterial
             color="#fde047"
             emissive="#facc15"
-            emissiveIntensity={0.95}
+            emissiveIntensity={2.2}
           />
         </mesh>
       </group>

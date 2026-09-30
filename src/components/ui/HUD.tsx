@@ -17,10 +17,12 @@ import {
   Check,
   Lock,
   Globe,
+  Monitor,
 } from 'lucide-react';
 import { MAPS } from '../../levels/maps';
 import { SUMMIT_PHASES, getSummitStageByCamps } from '../../levels/summitMap';
 import { getLevelById, livePhysics, useGameStore } from '../../store/useGameStore';
+import { GRAPHICS_QUALITY_LABEL } from '../../graphics/quality';
 import { MAX_TILT_RAD } from '../game/TiltController';
 import { soundFX } from './SoundManager';
 
@@ -73,6 +75,8 @@ export function HUD() {
   const setScreen = useGameStore((s) => s.setScreen);
   const toggleMute = useGameStore((s) => s.toggleMute);
   const toggleGhost = useGameStore((s) => s.toggleGhost);
+  const graphicsQuality = useGameStore((s) => s.graphicsQuality);
+  const cycleGraphicsQuality = useGameStore((s) => s.cycleGraphicsQuality);
   const triggerEmote = useGameStore((s) => s.triggerEmote);
   const openSummitLobbyModal = useGameStore((s) => s.openSummitLobbyModal);
 
@@ -401,6 +405,14 @@ export function HUD() {
           >
             <RotateCcw size={18} />
             <span>{gamepadConnected ? 'Reset (Y)' : 'Reset (R)'}</span>
+          </button>
+          <button
+            className="hud-icon-btn"
+            onClick={cycleGraphicsQuality}
+            title="Graphics Quality (Low / Medium / High)"
+          >
+            <Monitor size={17} />
+            <span>GFX: {GRAPHICS_QUALITY_LABEL[graphicsQuality]}</span>
           </button>
           <button className="hud-icon-btn" onClick={toggleMute} title="Toggle Audio">
             {soundMuted ? <VolumeX size={18} /> : <Volume2 size={18} />}
