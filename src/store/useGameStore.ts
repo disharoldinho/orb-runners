@@ -16,11 +16,18 @@ import { MAPS } from '../levels/maps';
 import { SUMMIT_LEVEL_ID, SUMMIT_MAP } from '../levels/summitMap';
 import { LevelData } from '../types/level';
 import { soundFX } from '../components/ui/SoundManager';
+import {
+  DEFAULT_GRAPHICS_QUALITY,
+  GRAPHICS_QUALITY_ORDER,
+  GraphicsQuality,
+  isGraphicsQuality,
+} from '../graphics/quality';
 
 const STORAGE_KEY_AVATAR = 'orb_runners_avatar_v1';
 const STORAGE_KEY_PROGRESS = 'orb_runners_progress_v1';
 const STORAGE_KEY_GHOSTS = 'orb_runners_ghosts_v1';
 const STORAGE_KEY_SUMMIT_PEAK = 'orb_runners_summit_peak_v1';
+const STORAGE_KEY_GRAPHICS = 'orb_runners_graphics_v1';
 
 export function getLevelById(levelId: number): LevelData {
   if (levelId === SUMMIT_LEVEL_ID) return SUMMIT_MAP;
@@ -87,6 +94,16 @@ function loadSavedSummitPeak(): number {
   return 0;
 }
 
+function loadSavedGraphicsQuality(): GraphicsQuality {
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY_GRAPHICS);
+    if (isGraphicsQuality(raw)) return raw;
+  } catch {
+    // ignore storage errors
+  }
+  return DEFAULT_GRAPHICS_QUALITY;
+}
+
 /**
  * Shared high-frequency mutable physics & tilt state read inside R3F `useFrame`
  * so 60-120Hz physics updates never force React DOM re-renders.
@@ -137,6 +154,7 @@ interface GameStore {
   isNewRecord: boolean;
   soundMuted: boolean;
   showGhost: boolean;
+  graphicsQuality: GraphicsQuality;
   gamepadConnected: boolean;
   gamepadName: string | null;
 
@@ -167,6 +185,8 @@ interface GameStore {
   updateAvatar: (partial: Partial<AvatarConfig>) => void;
   toggleMute: () => void;
   toggleGhost: () => void;
+  setGraphicsQuality: (quality: GraphicsQuality) => void;
+  cycleGraphicsQuality: () => void;
   setGamepadStatus: (connected: boolean, name: string | null) => void;
   getTotalMedalsCount: () => number;
   getAuthorMedalsCount: () => number;
@@ -210,6 +230,7 @@ export const useGameStore = create<GameStore>((set, get) => ({
   isNewRecord: false,
   soundMuted: false,
   showGhost: true,
+  graphicsQuality: loadSavedGraphicsQuality(),
   gamepadConnected: false,
   gamepadName: null,
 
@@ -343,6 +364,16 @@ export const useGameStore = create<GameStore>((set, get) => ({
 
     const map = getLevelById(currentLevelId);
     const totalCheckpoints = map.checkpoints?.length ?? 1;
+
+    // Sequential maps (Summit): a gate only counts if it's the next one in order.
+    if (map.sequentialCheckpoints && order !== crossedCheckpoints.length + 1) {
+      set({
+        checkpointWarningMessage: `Reach ${
+          map.isSummitMode ? 'Camp' : 'Checkpoint'
+        } ${crossedCheckpoints.length + 1} first!`,
+      });
+      return;
+    }
     const splitTimeMs = Math.round(elapsedMs);
 
     // Compare against saved Personal Best checkpoint split
@@ -382,7 +413,9 @@ export const useGameStore = create<GameStore>((set, get) => ({
     const map = getLevelById(currentLevelId);
     const total = map.checkpoints?.length ?? 0;
     set({
-      checkpointWarningMessage: `Cross all Checkpoints first! (${crossedCheckpoints.length}/${total})`,
+      checkpointWarningMessage: map.isSummitMode
+        ? `Pass every Base Camp first! (${crossedCheckpoints.length}/${total})`
+        : `Cross all Checkpoints first! (${crossedCheckpoints.length}/${total})`,
     });
   },
 
@@ -433,7 +466,8 @@ export const useGameStore = create<GameStore>((set, get) => ({
     if (playPhase !== 'playing') return;
 
     const map = getLevelById(currentLevelId);
-    const requiredCheckpoints = map.isSummitMode ? 0 : (map.checkpoints?.length ?? 0);
+    const requiredCheckpoints =
+      map.isSummitMode && !map.sequentialCheckpoints ? 0 : (map.checkpoints?.length ?? 0);
     if (crossedCheckpoints.length < requiredCheckpoints) {
       notifyMissedCheckpoint();
       return;
@@ -542,6 +576,20 @@ export const useGameStore = create<GameStore>((set, get) => ({
 
   toggleGhost: () => {
     set((state) => ({ showGhost: !state.showGhost }));
+  },
+
+  setGraphicsQuality: (quality) => {
+    try {
+      localStorage.setItem(STORAGE_KEY_GRAPHICS, quality);
+    } catch {
+      // ignore storage errors
+    }
+    set({ graphicsQuality: quality });
+  },
+
+  cycleGraphicsQuality: () => {
+    const idx = GRAPHICS_QUALITY_ORDER.indexOf(get().graphicsQuality);
+    get().setGraphicsQuality(GRAPHICS_QUALITY_ORDER[(idx + 1) % GRAPHICS_QUALITY_ORDER.length]);
   },
 
   setGamepadStatus: (connected, name) => {

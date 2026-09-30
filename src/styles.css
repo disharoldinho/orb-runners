@@ -175,7 +175,8 @@ button:active:not(:disabled) {
 
 .hero-canvas-container {
   width: 100%;
-  height: 220px;
+  /* Shrinks on short viewports so the hero panel (incl. graphics toggle) fits at 720p */
+  height: clamp(160px, calc(100vh - 550px), 220px);
   background: radial-gradient(circle at 50% 50%, rgba(56, 189, 248, 0.2), transparent 70%);
 }
 
@@ -222,6 +223,59 @@ button:active:not(:disabled) {
   display: flex;
   flex-direction: column;
   gap: 5px;
+}
+
+.graphics-quality-box {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin-top: 10px;
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid var(--border-glass);
+  border-radius: 14px;
+  padding: 7px 8px 7px 16px;
+}
+
+.graphics-quality-label {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 0.82rem;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: #38bdf8;
+  font-weight: 700;
+}
+
+.graphics-quality-toggle {
+  display: inline-flex;
+  background: rgba(15, 23, 42, 0.7);
+  border: 1px solid var(--border-glass);
+  border-radius: 10px;
+  padding: 3px;
+  gap: 2px;
+}
+
+.graphics-quality-toggle button {
+  background: transparent;
+  border: none;
+  color: #94a3b8;
+  font-family: var(--font-display);
+  font-weight: 700;
+  font-size: 0.8rem;
+  padding: 5px 11px;
+  border-radius: 7px;
+  cursor: pointer;
+}
+
+.graphics-quality-toggle button:hover {
+  color: #f8fafc;
+}
+
+.graphics-quality-toggle button.active {
+  background: #38bdf8;
+  color: #0b1120;
 }
 
 /* Right Stage Select Grid */
@@ -2319,5 +2373,116 @@ button:active:not(:disabled) {
   .goal-stats-box {
     padding: 8px 12px;
     margin-bottom: 10px;
+  }
+}
+
+/* Summit: current stage's signature challenge under the stage title */
+.summit-challenge-line {
+  margin-top: 4px;
+  padding-left: 8px;
+  border-left: 3px solid #fbbf24;
+  font-size: 0.72rem;
+  line-height: 1.3;
+  color: rgba(226, 232, 240, 0.85);
+  max-width: 300px;
+}
+@media (max-width: 760px) {
+  .summit-challenge-line {
+    display: none;
+  }
+}
+
+/* =====================================================================
+   GRAPHICS OVERHAUL: HUD / MENU POLISH
+   Layered "frosted glass" panels with a lit top edge, soft depth shadow,
+   glowing numerals and tactile buttons. Pure CSS overrides.
+   ===================================================================== */
+:root {
+  --glass-top: rgba(30, 41, 59, 0.82);
+  --glass-bottom: rgba(10, 15, 30, 0.78);
+  --glass-edge: rgba(148, 197, 255, 0.18);
+  --glass-highlight: inset 0 1px 0 rgba(255, 255, 255, 0.14), inset 0 -1px 0 rgba(0, 0, 0, 0.35);
+  --glass-drop: 0 10px 30px rgba(2, 6, 23, 0.45), 0 2px 6px rgba(2, 6, 23, 0.35);
+}
+
+.hud-card,
+.summit-thermometer-panel,
+.summit-leaderboard-panel,
+.tm-split-banner,
+.center-banner {
+  background: linear-gradient(180deg, var(--glass-top) 0%, var(--glass-bottom) 100%);
+  border-color: var(--glass-edge);
+  box-shadow: var(--glass-highlight), var(--glass-drop);
+  backdrop-filter: blur(14px) saturate(1.35);
+  -webkit-backdrop-filter: blur(14px) saturate(1.35);
+}
+
+.menu-hero-panel,
+.menu-levels-panel {
+  box-shadow: var(--glass-highlight), 0 24px 60px rgba(2, 6, 23, 0.55);
+  border-color: var(--glass-edge);
+  backdrop-filter: blur(18px) saturate(1.4);
+  -webkit-backdrop-filter: blur(18px) saturate(1.4);
+}
+
+.timer-digits {
+  text-shadow: 0 0 18px rgba(250, 204, 21, 0.45), 0 2px 0 rgba(120, 53, 15, 0.6);
+  letter-spacing: 0.02em;
+}
+
+.speed-number {
+  text-shadow: 0 0 14px rgba(255, 255, 255, 0.35);
+}
+
+.banner-main {
+  background: linear-gradient(180deg, #ffffff 0%, #fde68a 55%, #f59e0b 100%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  filter: drop-shadow(0 4px 14px rgba(245, 158, 11, 0.45));
+}
+
+.hud-icon-btn {
+  background: linear-gradient(180deg, rgba(30, 41, 59, 0.9) 0%, rgba(15, 23, 42, 0.86) 100%);
+  border-color: var(--glass-edge);
+  box-shadow: var(--glass-highlight), 0 6px 16px rgba(2, 6, 23, 0.4);
+  transition: transform 0.12s ease, box-shadow 0.18s ease, border-color 0.18s ease,
+    background 0.18s ease;
+}
+
+.hud-icon-btn:hover {
+  transform: translateY(-1px);
+  box-shadow: var(--glass-highlight), 0 10px 22px rgba(2, 6, 23, 0.5), 0 0 0 1px rgba(56, 189, 248, 0.35);
+}
+
+.hud-icon-btn:active {
+  transform: translateY(1px) scale(0.98);
+}
+
+.hud-icon-btn:focus-visible,
+.level-card:focus-visible {
+  outline: 2px solid #38bdf8;
+  outline-offset: 2px;
+}
+
+.stage-pill,
+.cp-progress-pill {
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.25);
+}
+
+.level-card {
+  transition: transform 0.16s ease, box-shadow 0.2s ease, border-color 0.2s ease;
+  box-shadow: var(--glass-highlight), 0 8px 20px rgba(2, 6, 23, 0.35);
+}
+
+.level-card:hover:not(.editor-teaser-card),
+.level-card.gamepad-selected-card {
+  box-shadow: var(--glass-highlight), 0 16px 34px rgba(2, 6, 23, 0.5), 0 0 24px rgba(56, 189, 248, 0.18);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .hud-icon-btn,
+  .level-card {
+    transition: none;
   }
 }

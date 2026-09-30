@@ -1,7 +1,14 @@
 import { useMemo } from 'react';
 import { RigidBody } from '@react-three/rapier';
+import type { CoefficientCombineRule } from '@dimforge/rapier3d-compat';
 import * as THREE from 'three';
 import { BlockTheme, StaticBlockDef } from '../../types/level';
+import { useGameStore } from '../../store/useGameStore';
+import {
+  getSharedMaterial,
+  getSurfaceMaterial,
+  isNaturalTheme,
+} from '../../graphics/surfaceMaterials';
 
 export const THEME_PALETTES: Record<
   BlockTheme,
@@ -63,7 +70,52 @@ export const THEME_PALETTES: Record<
     rail: '#ffffff',
     glow: '#7dd3fc',
   },
+  forest: {
+    c1: '#4d7c0f',
+    c2: '#3f6212',
+    trim: '#a16207',
+    rail: '#78350f',
+    glow: '#bef264',
+  },
+  crystal: {
+    c1: '#6d28d9',
+    c2: '#4c1d95',
+    trim: '#e879f9',
+    rail: '#c4b5fd',
+    glow: '#f0abfc',
+  },
+  sand: {
+    c1: '#e7b872',
+    c2: '#d19a4c',
+    trim: '#b45309',
+    rail: '#9a3412',
+    glow: '#fcd34d',
+  },
+  lava: {
+    c1: '#292524',
+    c2: '#1c1917',
+    trim: '#f97316',
+    rail: '#57534e',
+    glow: '#fb923c',
+  },
+  storm: {
+    c1: '#475569',
+    c2: '#334155',
+    trim: '#67e8f9',
+    rail: '#e2e8f0',
+    glow: '#a5f3fc',
+  },
+  cloud: {
+    c1: '#f8fafc',
+    c2: '#e2e8f0',
+    trim: '#fbbf24',
+    rail: '#fde68a',
+    glow: '#fef3c7',
+  },
 };
+
+/** Rapier CoefficientCombineRule.Min: an ice surface stays slippery whatever the orb's own friction. */
+const COMBINE_MIN = 1 as CoefficientCombineRule;
 
 const textureCache = new Map<string, THREE.CanvasTexture>();
 let sharedBumpMap: THREE.CanvasTexture | null = null;
@@ -110,6 +162,17 @@ export function getCheckerTexture(theme: BlockTheme, repeatX: number, repeatZ: n
   const key = `${theme}_${Math.round(repeatX * 2)}_${Math.round(repeatZ * 2)}_v2`;
   const existing = textureCache.get(key);
   if (existing) return existing;
+
+  // One canvas (and one GPU upload) per theme; per-size textures are clones sharing its source.
+  const baseKey = `${theme}_base_v2`;
+  const base = textureCache.get(baseKey);
+  if (base) {
+    const clone = base.clone();
+    clone.repeat.set(Math.max(1, repeatX / 2), Math.max(1, repeatZ / 2));
+    clone.needsUpdate = true;
+    textureCache.set(key, clone);
+    return clone;
+  }
 
   const palette = THEME_PALETTES[theme] || THEME_PALETTES.meadow;
   const canvas = document.createElement('canvas');
@@ -163,8 +226,8 @@ export function getCheckerTexture(theme: BlockTheme, repeatX: number, repeatZ: n
   tex.wrapT = THREE.RepeatWrapping;
   tex.repeat.set(Math.max(1, repeatX / 2), Math.max(1, repeatZ / 2));
   tex.anisotropy = 8;
-  textureCache.set(key, tex);
-  return tex;
+  textureCache.set(baseKey, tex);
+  return getCheckerTexture(theme, repeatX, repeatZ);
 }
 
 export function StaticBlock({
@@ -174,110 +237,141 @@ export function StaticBlock({
   theme = 'meadow',
   rails = 'none',
   railHeight = 0.45,
+  surface = 'normal',
+  decorative = false,
 }: StaticBlockDef) {
   const [sx, sy, sz] = size;
   const palette = THEME_PALETTES[theme] || THEME_PALETTES.meadow;
 
-  const checkerTex = useMemo(() => getCheckerTexture(theme, sx, sz), [theme, sx, sz]);
-  const bumpTex = useMemo(() => getTileBumpMap(sx, sz), [sx, sz]);
+  const quality = useGameStore((st) => st.graphicsQuality);
+  const isIce = surface === 'ice';
+  const natural = isNaturalTheme(theme);
+
+  // Shared (per theme/quality) materials: one program + uniform set for hundreds of blocks.
+  const mats = useMemo(() => {
+    const body = getSurfaceMaterial(theme, surface, palette, quality);
+    const trim = getSharedMaterial(
+      `trim|${theme}`,
+      () =>
+        new THREE.MeshStandardMaterial({
+          color: palette.trim,
+          emissive: palette.glow,
+          emissiveIntensity: natural ? 0.55 : 1.1,
+          roughness: 0.2,
+          metalness: 0.5,
+        })
+    );
+    const curb = getSharedMaterial(
+      `curb|${theme}`,
+      () =>
+        new THREE.MeshStandardMaterial({
+          color: palette.rail,
+          emissive: palette.glow,
+          emissiveIntensity: natural ? 0.12 : 0.25,
+          roughness: 0.3,
+        })
+    );
+    // Natural themes: the underside reads as rock (same procedural body material).
+    const hull = natural
+      ? body
+      : getSharedMaterial(
+          'hull|metal',
+          () => new THREE.MeshStandardMaterial({ color: '#0f172a', metalness: 0.7, roughness: 0.3 })
+        );
+    const rail = getSharedMaterial(
+      `rail|${theme}`,
+      () =>
+        new THREE.MeshStandardMaterial({
+          color: palette.rail,
+          roughness: natural ? 0.55 : 0.25,
+          metalness: natural ? 0.1 : 0.4,
+        })
+    );
+    const railGlow = getSharedMaterial(
+      `railglow|${theme}`,
+      () =>
+        new THREE.MeshStandardMaterial({
+          color: palette.glow,
+          emissive: palette.glow,
+          emissiveIntensity: natural ? 1.2 : 1.8,
+        })
+    );
+    return { body, trim, curb, hull, rail, railGlow };
+  }, [theme, surface, palette, quality, natural]);
 
   const showLeftRail = rails === 'both' || rails === 'left';
   const showRightRail = rails === 'both' || rails === 'right';
   const railThickness = 0.24;
+
+  // NOTE: the mesh list below must stay geometry-identical: the fixed RigidBody derives its
+  // cuboid colliders from these meshes. Only materials are art (shared, procedural).
+  const content = (
+    <>
+      {/* Main block: procedural themed tiles on top, rock/panels on the sides */}
+      <mesh receiveShadow castShadow material={mats.body}>
+        <boxGeometry args={[sx, sy, sz]} />
+      </mesh>
+
+      {/* Glowing side trim frame */}
+      <mesh position={[0, -sy * 0.2, 0]} material={mats.trim}>
+        <boxGeometry args={[sx + 0.1, 0.1, sz + 0.08]} />
+      </mesh>
+
+      {/* Edge curbs (left & right) */}
+      <mesh position={[-sx / 2 + 0.09, sy / 2 + 0.012, 0]} receiveShadow material={mats.curb}>
+        <boxGeometry args={[0.18, 0.024, sz]} />
+      </mesh>
+      <mesh position={[sx / 2 - 0.09, sy / 2 + 0.012, 0]} receiveShadow material={mats.curb}>
+        <boxGeometry args={[0.18, 0.024, sz]} />
+      </mesh>
+
+      {/* Under-hull (rock for natural themes, metal chassis for stadium themes) */}
+      <mesh position={[0, -sy / 2 - 0.18, 0]} material={mats.hull}>
+        <boxGeometry args={[sx * 0.88, 0.34, sz * 0.94]} />
+      </mesh>
+
+      {showLeftRail && (
+        <group position={[-sx / 2 + railThickness / 2, sy / 2 + railHeight / 2, 0]}>
+          <mesh castShadow receiveShadow material={mats.rail}>
+            <boxGeometry args={[railThickness, railHeight, sz]} />
+          </mesh>
+          <mesh position={[0, railHeight / 2 + 0.02, 0]} material={mats.railGlow}>
+            <boxGeometry args={[railThickness * 0.6, 0.04, sz]} />
+          </mesh>
+        </group>
+      )}
+
+      {showRightRail && (
+        <group position={[sx / 2 - railThickness / 2, sy / 2 + railHeight / 2, 0]}>
+          <mesh castShadow receiveShadow material={mats.rail}>
+            <boxGeometry args={[railThickness, railHeight, sz]} />
+          </mesh>
+          <mesh position={[0, railHeight / 2 + 0.02, 0]} material={mats.railGlow}>
+            <boxGeometry args={[railThickness * 0.6, 0.04, sz]} />
+          </mesh>
+        </group>
+      )}
+    </>
+  );
+
+  if (decorative) {
+    return (
+      <group position={position} rotation={rotation}>
+        {content}
+      </group>
+    );
+  }
 
   return (
     <RigidBody
       type="fixed"
       position={position}
       rotation={rotation}
-      friction={theme === 'ice' ? 0.15 : 0.95}
+      friction={isIce ? 0.02 : theme === 'ice' ? 0.15 : 0.95}
+      frictionCombineRule={isIce ? COMBINE_MIN : undefined}
       restitution={0.2}
     >
-      {/* Main Beveled PBR Floor Block */}
-      <mesh receiveShadow castShadow>
-        <boxGeometry args={[sx, sy, sz]} />
-        <meshStandardMaterial
-          map={checkerTex}
-          bumpMap={bumpTex}
-          bumpScale={0.016}
-          roughness={theme === 'ice' ? 0.08 : theme === 'cyber' ? 0.24 : 0.32}
-          metalness={theme === 'gold' ? 0.65 : theme === 'cyber' ? 0.35 : 0.15}
-        />
-      </mesh>
-
-      {/* Glowing Neon Side Trim Frame */}
-      <mesh position={[0, -sy * 0.2, 0]}>
-        <boxGeometry args={[sx + 0.1, 0.1, sz + 0.08]} />
-        <meshStandardMaterial
-          color={palette.trim}
-          emissive={palette.glow}
-          emissiveIntensity={0.5}
-          roughness={0.2}
-          metalness={0.5}
-        />
-      </mesh>
-
-      {/* Trackmania Stadium Racing Edge Curbs (Left & Right) */}
-      <mesh position={[-sx / 2 + 0.09, sy / 2 + 0.012, 0]} receiveShadow>
-        <boxGeometry args={[0.18, 0.024, sz]} />
-        <meshStandardMaterial
-          color={palette.rail}
-          emissive={palette.glow}
-          emissiveIntensity={0.25}
-          roughness={0.25}
-        />
-      </mesh>
-      <mesh position={[sx / 2 - 0.09, sy / 2 + 0.012, 0]} receiveShadow>
-        <boxGeometry args={[0.18, 0.024, sz]} />
-        <meshStandardMaterial
-          color={palette.rail}
-          emissive={palette.glow}
-          emissiveIntensity={0.25}
-          roughness={0.25}
-        />
-      </mesh>
-
-      {/* Architectural Metallic Under-Chassis Hull */}
-      <mesh position={[0, -sy / 2 - 0.18, 0]}>
-        <boxGeometry args={[sx * 0.88, 0.34, sz * 0.94]} />
-        <meshStandardMaterial color="#0f172a" metalness={0.7} roughness={0.3} />
-      </mesh>
-
-      {/* Optional Left Safety Rail with Glowing Top Strip */}
-      {showLeftRail && (
-        <group position={[-sx / 2 + railThickness / 2, sy / 2 + railHeight / 2, 0]}>
-          <mesh castShadow receiveShadow>
-            <boxGeometry args={[railThickness, railHeight, sz]} />
-            <meshStandardMaterial color={palette.rail} roughness={0.25} metalness={0.35} />
-          </mesh>
-          <mesh position={[0, railHeight / 2 + 0.02, 0]}>
-            <boxGeometry args={[railThickness * 0.6, 0.04, sz]} />
-            <meshStandardMaterial
-              color={palette.glow}
-              emissive={palette.glow}
-              emissiveIntensity={0.8}
-            />
-          </mesh>
-        </group>
-      )}
-
-      {/* Optional Right Safety Rail with Glowing Top Strip */}
-      {showRightRail && (
-        <group position={[sx / 2 - railThickness / 2, sy / 2 + railHeight / 2, 0]}>
-          <mesh castShadow receiveShadow>
-            <boxGeometry args={[railThickness, railHeight, sz]} />
-            <meshStandardMaterial color={palette.rail} roughness={0.25} metalness={0.35} />
-          </mesh>
-          <mesh position={[0, railHeight / 2 + 0.02, 0]}>
-            <boxGeometry args={[railThickness * 0.6, 0.04, sz]} />
-            <meshStandardMaterial
-              color={palette.glow}
-              emissive={palette.glow}
-              emissiveIntensity={0.8}
-            />
-          </mesh>
-        </group>
-      )}
+      {content}
     </RigidBody>
   );
 }

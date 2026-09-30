@@ -11,74 +11,44 @@ const DIST_DIR = path.resolve(__dirname, '../dist');
 const PORT = Number(process.env.PORT || process.env.SUMMIT_PORT || 5174);
 
 /**
- * Generate the exact 25-stage Summit centerline waypoints (0m -> 250m, ~2.05km)
- * matching `src/levels/summitMap.ts` so server-side AI Climber Bots
- * physically ascend the 5-Phase mountain highway alongside players.
+ * Summit centerline waypoints for the server-side AI Climber Bots.
+ *
+ * The 9-stage spiral route is generated from `src/levels/summitMap.ts` (the same data the
+ * game renders) into `server/summitWaypoints.json` by `npm run summit:waypoints`, so bots
+ * always ride the real road, through every Base Camp, in order. Points are ~[x, surface+0.6, z].
  */
 function buildSummitWaypoints() {
-  const pts = [[0, 1.0, 0]];
-  let curX = 0;
-  let curY = 0;
-  let curZ = -14;
-
-  const stageTargetX = [
-    0,
-    0, 0, 0, 0, 12,
-    12, 12, 12, 0, 0,
-    0, 0, -12, -12, -12,
-    -12, -12, 0, 0, 0,
-    0, 0, 0, 0, 0,
-  ];
-  const RISE_PER_STAGE = 10.0;
-  const RAMP_SPAN_Z = 50.0;
-
-  for (let stage = 1; stage <= 25; stage++) {
-    const nextY = Number((curY + RISE_PER_STAGE).toFixed(2));
-    const targetX = stageTargetX[stage];
-    const rampEndZ = curZ - RAMP_SPAN_Z;
-    const midY = Number(((curY + nextY) * 0.5).toFixed(2));
-    const midZ = Number(((curZ + rampEndZ) * 0.5).toFixed(2));
-
-    // Mid-ramp waypoint
-    pts.push([curX, midY + 1.0, midZ]);
-
-    // Top of ramp entry terrace
-    let deckZ = rampEndZ;
-    pts.push([curX, nextY + 1.0, deckZ - 7.0]);
-    deckZ -= 14.0;
-
-    // Feature deck span
-    if (stage === 4 || stage === 8 || stage === 22) {
-      pts.push([curX, nextY + 1.0, deckZ - 7.0]);
-      deckZ -= 14.0;
-    } else if (stage === 7 || stage === 21) {
-      pts.push([curX, nextY + 1.0, deckZ - 5.5]);
-      deckZ -= 11.0;
-    } else if (stage === 12 || stage === 18) {
-      pts.push([curX, nextY + 1.0, deckZ - 8.0]);
-      deckZ -= 16.0;
-    } else if (stage === 13 || stage === 17) {
-      pts.push([curX, nextY + 1.0, deckZ - 9.0]);
-      deckZ -= 18.0;
-    }
-
-    // Stage Exit Plaza / S-curve
-    const isBiomeCamp = stage % 5 === 0 && stage < 25;
-    const isPreSummitCamp = stage === 23;
-    const isFinalSummit = stage === 25;
-    const plazaLen = isFinalSummit ? 24.0 : isBiomeCamp || isPreSummitCamp ? 16.0 : 12.0;
-    const plazaCenterZ = deckZ - plazaLen * 0.5;
-
-    pts.push([targetX, nextY + 1.0, plazaCenterZ]);
-
-    curX = targetX;
-    curY = nextY;
-    curZ = deckZ - plazaLen;
+  try {
+    const data = JSON.parse(fs.readFileSync(path.join(__dirname, 'summitWaypoints.json'), 'utf8'));
+    if (Array.isArray(data.waypoints) && data.waypoints.length >= 2) return data.waypoints;
+    throw new Error('no waypoints in file');
+  } catch (err) {
+    console.warn(
+      `[summit] could not load server/summitWaypoints.json (${err.message}); ` +
+        'run `npm run summit:waypoints`. Bots will idle at base camp.'
+    );
+    return [
+      [0, 1.0, 0],
+      [0, 1.0, -8],
+    ];
   }
-  return pts;
+}
+
+/** Cumulative arc length per waypoint so bots move at a real speed in m/s. */
+function buildArcLengths(pts) {
+  const cum = [0];
+  for (let i = 1; i < pts.length; i++) {
+    const [a, b] = [pts[i - 1], pts[i]];
+    cum.push(cum[i - 1] + Math.hypot(b[0] - a[0], b[1] - a[1], b[2] - a[2]));
+  }
+  return cum;
 }
 
 const WAYPOINTS = buildSummitWaypoints();
+const WAYPOINT_DIST = buildArcLengths(WAYPOINTS);
+const ROUTE_LENGTH = WAYPOINT_DIST[WAYPOINT_DIST.length - 1];
+/** Seconds a bot celebrates on the summit before looping back to base camp. */
+const SUMMIT_REST_SEC = 12;
 
 const BOT_PROFILES = [
   {
@@ -208,21 +178,36 @@ createRoom({
   includeBots: true,
 });
 
+/** Position along the route for a bot, looping climb -> summit rest -> restart. */
+function locateOnRoute(dist) {
+  let lo = 0;
+  let hi = WAYPOINT_DIST.length - 1;
+  while (hi - lo > 1) {
+    const mid = (lo + hi) >> 1;
+    if (WAYPOINT_DIST[mid] <= dist) lo = mid;
+    else hi = mid;
+  }
+  const segLen = WAYPOINT_DIST[hi] - WAYPOINT_DIST[lo] || 1;
+  return { segIdx: lo, frac: Math.min(1, Math.max(0, (dist - WAYPOINT_DIST[lo]) / segLen)) };
+}
+
 function sampleBotStates(elapsedSec) {
-  const totalSegments = WAYPOINTS.length - 1;
   return BOT_PROFILES.map((bot, idx) => {
-    const cycleProgress = ((elapsedSec * bot.speed * 0.045 + bot.phase) % 1.0) * totalSegments;
-    const segIdx = Math.min(totalSegments - 1, Math.floor(cycleProgress));
-    const frac = cycleProgress - segIdx;
+    // bot.speed is a relative pace; map it to ~4.5-8 m/s along the road.
+    const metersPerSec = 2.5 + bot.speed * 12;
+    const cycleSec = ROUTE_LENGTH / metersPerSec + SUMMIT_REST_SEC;
+    const t = (elapsedSec + bot.phase * cycleSec) % cycleSec;
+    const dist = Math.min(ROUTE_LENGTH, t * metersPerSec);
+    const { segIdx, frac } = locateOnRoute(dist);
 
     const p0 = WAYPOINTS[segIdx];
-    const p1 = WAYPOINTS[segIdx + 1];
+    const p1 = WAYPOINTS[Math.min(WAYPOINTS.length - 1, segIdx + 1)];
 
-    // Smooth arc with jump parabola when ascending between terraces
-    const jumpArcY = Math.sin(frac * Math.PI) * 1.85;
-    const x = p0[0] + (p1[0] - p0[0]) * frac + Math.sin(elapsedSec * 1.7 + idx) * 0.65 + bot.laneOffset * 0.4;
-    const y = p0[1] + (p1[1] - p0[1]) * frac + jumpArcY;
-    const z = p0[2] + (p1[2] - p0[2]) * frac + Math.cos(elapsedSec * 1.5 + idx) * 0.65;
+    // Gentle rolling bob (waypoints are dense, so no big hops that would clip rails/ceilings)
+    const bobY = Math.abs(Math.sin(elapsedSec * 2.2 + idx)) * 0.25;
+    const x = p0[0] + (p1[0] - p0[0]) * frac + Math.sin(elapsedSec * 1.7 + idx) * 0.45 + bot.laneOffset * 0.4;
+    const y = p0[1] + (p1[1] - p0[1]) * frac + bobY;
+    const z = p0[2] + (p1[2] - p0[2]) * frac + Math.cos(elapsedSec * 1.5 + idx) * 0.45;
 
     const dx = p1[0] - p0[0];
     const dz = p1[2] - p0[2];
@@ -239,7 +224,7 @@ function sampleBotStates(elapsedSec) {
       position: [Number(x.toFixed(2)), Number(y.toFixed(2)), Number(z.toFixed(2))],
       yaw: Number(yaw.toFixed(2)),
       altitudeM,
-      peakAltitudeM: Math.max(altitudeM, Math.min(220, altitudeM + 18)),
+      peakAltitudeM: altitudeM,
       avatar: bot.avatar,
       emote,
       isBot: true,
@@ -412,6 +397,14 @@ wss.on('connection', (ws) => {
     } catch {
       // ignore malformed messages
     }
+  });
+
+  // Without an 'error' listener, ws re-throws protocol errors (invalid opcode,
+  // bad UTF-8, oversized payload, abrupt socket resets) as an unhandled
+  // EventEmitter 'error', crashing the whole server and every lobby with it.
+  // ws terminates the socket after emitting, so 'close' still runs cleanup.
+  ws.on('error', (err) => {
+    console.warn(`[Orb Runners Summit Server] WebSocket error from ${clientId}: ${err.message}`);
   });
 
   ws.on('close', () => {

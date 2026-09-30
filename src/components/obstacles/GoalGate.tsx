@@ -7,6 +7,7 @@ import * as THREE from 'three';
 import { useGameStore } from '../../store/useGameStore';
 import { CollectibleGemDef, Vec3 } from '../../types/level';
 import { spawnParticleBurst, spawnShockwave } from '../game/ParticleFX';
+import { getBeamMaterial, getVortexMaterial } from '../../graphics/fxMaterials';
 
 interface GoalGateProps {
   position: Vec3;
@@ -32,8 +33,7 @@ export function GoalGate({
       starRef.current.rotation.y += delta * 2.4;
     }
     if (portalRef.current) {
-      const mat = portalRef.current.material as THREE.MeshBasicMaterial;
-      mat.opacity = 0.24 + Math.sin(state.clock.elapsedTime * 5) * 0.08;
+      portalRef.current.rotation.z += delta * 0.6;
     }
 
     if (movingRange && gateBodyRef.current) {
@@ -130,17 +130,16 @@ export function GoalGate({
         GOAL
       </Text>
 
-      {/* Glowing Inner Energy Portal Curtain */}
+      {/* Swirling goal vortex + golden landmark beam */}
       {playPhase !== 'goal' && (
-        <mesh ref={portalRef} position={[0, 1.5, 0]}>
-          <planeGeometry args={[2.85, 2.85]} />
-          <meshBasicMaterial
-            color="#00f5d4"
-            transparent
-            opacity={0.26}
-            side={THREE.DoubleSide}
-          />
-        </mesh>
+        <>
+          <mesh ref={portalRef} position={[0, 1.5, 0]} material={getVortexMaterial('#00f5d4', '#fde047')}>
+            <planeGeometry args={[2.95, 2.95]} />
+          </mesh>
+          <mesh position={[0, 3.3 + 34, 0]} material={getBeamMaterial('#fde047')}>
+            <cylinderGeometry args={[0.8, 0.8, 68, 20, 1, true]} />
+          </mesh>
+        </>
       )}
 
       {/* Spinning Crown Star & Orbiting Satellites Above Goal */}
