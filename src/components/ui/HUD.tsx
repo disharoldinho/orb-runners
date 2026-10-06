@@ -3,6 +3,7 @@ import { MAPS } from '../../levels/maps';
 import { SUMMIT_PHASES, getSummitStageByCamps } from '../../levels/summitMap';
 import { getLevelById, livePhysics, useGameStore } from '../../store/useGameStore';
 import { useUiStore } from '../../store/useUiStore';
+import { isShortcutKey } from '../../input/keyboardGuards';
 import { MAX_TILT_RAD } from '../game/TiltController';
 import { HudMenuSheet } from './HudMenuSheet';
 import { EMOTES, Icon, MedalDisc } from './icons';
@@ -98,6 +99,7 @@ export function HUD() {
   // Keyboard: G ghost, 1-4 Summit emotes, Esc run menu.
   useEffect(() => {
     const onKeyDown = (e: KeyboardEvent) => {
+      if (!isShortcutKey(e)) return;
       if (e.code === 'Escape') {
         if (useGameStore.getState().playPhase !== 'goal') toggleMenu();
         return;
