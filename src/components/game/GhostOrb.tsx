@@ -1,10 +1,14 @@
 import { useEffect, useRef } from 'react';
 import { useFrame } from '@react-three/fiber';
-import { Billboard, Text } from '@react-three/drei';
 import * as THREE from 'three';
-import { currentRunGhostBuffer, getLevelById, livePhysics, useGameStore } from '../../store/useGameStore';
+import { currentRunGhostBuffer, livePhysics, useGameStore } from '../../store/useGameStore';
 import { CharacterModel } from './CharacterModel';
 import { ORB_RADIUS } from './PlayerOrb';
+import { NameTag } from './StickerTags';
+
+/** The PB delta chip only shows while you are within this distance of the ghost's path. */
+const GHOST_MATCH_RADIUS_M = 4.5;
+const GHOST_TAG = { name: 'PB Ghost', accent: '#38bdf8', fill: '#dff7ff' };
 
 export function GhostOrb() {
   const currentLevelId = useGameStore((s) => s.currentLevelId);
@@ -15,11 +19,17 @@ export function GhostOrb() {
   const ghostGroupRef = useRef<THREE.Group>(null);
   const outerRingRef = useRef<THREE.Group>(null);
   const lastSampleMs = useRef(0);
+  /** Playback cursor into the ghost frames (monotonic within a run). */
+  const playIdx = useRef(0);
+  /** Index of the ghost frame last matched to the player's position. */
+  const matchIdx = useRef(0);
+  const frameNo = useRef(0);
 
-  const level = getLevelById(currentLevelId);
 
   useEffect(() => {
     lastSampleMs.current = 0;
+    playIdx.current = 0;
+    matchIdx.current = 0;
     currentRunGhostBuffer.frames = [];
     livePhysics.ghostDeltaMs = null;
   }, [runAttemptId, currentLevelId]);
@@ -60,10 +70,13 @@ export function GhostOrb() {
       state.playPhase === 'playing' || state.playPhase === 'countdown';
 
     // Find bounding keyframes for current elapsedMs
-    let idx = 0;
+    // (gem bonuses can move the clock back, so rewind the cursor when needed)
+    let idx = Math.min(playIdx.current, frames.length - 2);
+    while (idx > 0 && frames[idx][0] > elapsed) idx--;
     while (idx < frames.length - 2 && frames[idx + 1][0] < elapsed) {
       idx++;
     }
+    playIdx.current = idx;
 
     const f0 = frames[idx];
     const f1 = frames[idx + 1];
@@ -83,24 +96,38 @@ export function GhostOrb() {
       outerRingRef.current.rotation.z += delta * 1.4;
     }
 
-    // 3. Compute live split delta vs Ghost based on distance to Goal Gate
+    // 3. Live split vs the ghost: find where the ghost was when it passed the player's
+    // current spot (nearest point on its recorded path, searched in a window around the
+    // last match so switchbacks and spiral loops never snap to the wrong part of the
+    // course) and compare the clocks. Negative = ahead of the PB.
+    frameNo.current++;
     if (state.playPhase === 'playing' && elapsed > 600) {
-      const [goalX, , goalZ] = level.goalPosition;
-      const playerDist = Math.hypot(bx - goalX, bz - goalZ);
-
-      // Find the frame where the ghost was at a similar distance to the goal
-      let closestTime = f0[0];
-      let minDiff = Infinity;
-      for (let i = 0; i < frames.length; i++) {
-        const d = Math.hypot(frames[i][1] - goalX, frames[i][3] - goalZ);
-        const diff = Math.abs(d - playerDist);
-        if (diff < minDiff) {
-          minDiff = diff;
-          closestTime = frames[i][0];
+      const r2 = GHOST_MATCH_RADIUS_M * GHOST_MATCH_RADIUS_M;
+      const nearest = (lo: number, hi: number) => {
+        let best = -1;
+        let bestD = Infinity;
+        for (let i = lo; i <= hi; i++) {
+          const f = frames[i];
+          const d = (f[1] - bx) ** 2 + (f[2] - by) ** 2 + (f[3] - bz) ** 2;
+          if (d < bestD) {
+            bestD = d;
+            best = i;
+          }
         }
+        return { best, bestD };
+      };
+      const m = matchIdx.current;
+      let hit = nearest(Math.max(0, m - 40), Math.min(frames.length - 1, m + 200));
+      // Lost the path (respawn, shortcut): full re-scan a few times per second.
+      if (hit.bestD > r2 && frameNo.current % 15 === 0) hit = nearest(0, frames.length - 1);
+      if (hit.best >= 0 && hit.bestD <= r2) {
+        matchIdx.current = hit.best;
+        livePhysics.ghostDeltaMs = elapsed - frames[hit.best][0];
+      } else {
+        livePhysics.ghostDeltaMs = null;
       }
-      // Negative = player reached this point faster than PB ghost!
-      livePhysics.ghostDeltaMs = elapsed - closestTime;
+    } else if (state.playPhase !== 'goal') {
+      livePhysics.ghostDeltaMs = null;
     }
   });
 
@@ -140,19 +167,8 @@ export function GhostOrb() {
         </mesh>
       </group>
 
-      {/* Floating Billboard Tag */}
-      <Billboard position={[0, ORB_RADIUS + 0.42, 0]}>
-        <Text
-          fontSize={0.2}
-          color="#00f5d4"
-          anchorX="center"
-          anchorY="middle"
-          outlineWidth={0.025}
-          outlineColor="#090d16"
-        >
-          PB GHOST
-        </Text>
-      </Billboard>
+      {/* Sticker tag */}
+      <NameTag position={[0, ORB_RADIUS + 0.45, 0]} spec={GHOST_TAG} worldHeight={0.3} />
     </group>
   );
 }

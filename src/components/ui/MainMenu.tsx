@@ -8,7 +8,8 @@ import { useGameStore } from '../../store/useGameStore';
 import { GRAPHICS_QUALITY_LABEL, GRAPHICS_QUALITY_ORDER } from '../../graphics/quality';
 import { CharacterModel } from '../game/CharacterModel';
 import { OrbShell } from '../game/PlayerOrb';
-import { SummitPoster, Wordmark } from './brand';
+import { SummitPhaseStrip, SummitPoster, Wordmark } from './brand';
+import { campaignTicketArt } from '../../art';
 import { formatTimeMs } from './HUD';
 import { Icon, MedalDisc } from './icons';
 
@@ -162,7 +163,7 @@ export function MainMenu() {
                 <li>
                   <span>Ghost / emotes</span>
                   <b>
-                    <kbd>G</kbd> <kbd>1–4</kbd>
+                    <kbd>G</kbd> <kbd>1–8</kbd>
                   </b>
                 </li>
               </ul>
@@ -184,6 +185,7 @@ export function MainMenu() {
               <p>
                 One 250 m spiral road, 9 themed stages, 8 base camps. Race everyone to the crown.
               </p>
+              <SummitPhaseStrip />
               <div className="summit-stats">
                 <span>
                   <small>Peak</small>
@@ -250,7 +252,25 @@ export function MainMenu() {
                     onClick={() => selectLevel(map.id)}
                     aria-label={`Play ${map.name}`}
                   >
-                    <span className="ticket-num">{String(map.id).padStart(2, '0')}</span>
+                    <span className="ticket-art" aria-hidden>
+                      <img
+                        src={campaignTicketArt(map.id)}
+                        alt=""
+                        width={298}
+                        height={178}
+                        loading="lazy"
+                        decoding="async"
+                        draggable={false}
+                      />
+                      <span className="ticket-num">{String(map.id).padStart(2, '0')}</span>
+                      <span className="ticket-medal">
+                        <MedalDisc tier={medal} size={30} />
+                      </span>
+                      <span className="ticket-go">
+                        <Icon name="play" size={16} />
+                        {gamepadConnected && isSelected && <kbd>A</kbd>}
+                      </span>
+                    </span>
                     <span className="ticket-body">
                       <span className="ticket-title">{map.name}</span>
                       <span className="ticket-sub">{map.subtitle}</span>
@@ -260,7 +280,7 @@ export function MainMenu() {
                             <i key={i} className={i < map.difficulty ? 'on' : ''} />
                           ))}
                         </span>
-                        <span className="ticket-pb">
+                        <span className="ticket-pb" title="Personal best">
                           <Icon name="stopwatch" size={13} />
                           {stat?.bestTimeMs ? formatTimeMs(stat.bestTimeMs) : '--.---'}
                         </span>
@@ -268,13 +288,6 @@ export function MainMenu() {
                           <MedalDisc tier="gold" size={12} />
                           {(map.medalTimesMs.gold / 1000).toFixed(1)}
                         </span>
-                      </span>
-                    </span>
-                    <span className="ticket-end">
-                      <MedalDisc tier={medal} size={26} />
-                      <span className="ticket-go">
-                        <Icon name="play" size={16} />
-                        {gamepadConnected && isSelected && <kbd>A</kbd>}
                       </span>
                     </span>
                   </button>

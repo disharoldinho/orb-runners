@@ -50,7 +50,8 @@ function loadSavedAvatar(): AvatarConfig {
   try {
     const raw = localStorage.getItem(STORAGE_KEY_AVATAR);
     if (raw) {
-      return { ...DEFAULT_AVATAR, ...JSON.parse(raw) };
+      const parsed: unknown = JSON.parse(raw);
+      if (isPlainObject(parsed)) return { ...DEFAULT_AVATAR, ...(parsed as Partial<AvatarConfig>) };
     }
   } catch {
     // ignore storage errors
@@ -58,11 +59,30 @@ function loadSavedAvatar(): AvatarConfig {
   return DEFAULT_AVATAR;
 }
 
+const isPlainObject = (v: unknown): v is Record<string, unknown> =>
+  typeof v === 'object' && v !== null && !Array.isArray(v);
+
 function loadSavedProgress(): Record<number, LevelProgress> {
   try {
     const raw = localStorage.getItem(STORAGE_KEY_PROGRESS);
     if (raw) {
-      return JSON.parse(raw);
+      const parsed: unknown = JSON.parse(raw);
+      if (!isPlainObject(parsed)) return {};
+      const out: Record<number, LevelProgress> = {};
+      for (const [id, p] of Object.entries(parsed)) {
+        if (!isPlainObject(p)) continue;
+        const best = typeof p.bestTimeMs === 'number' && Number.isFinite(p.bestTimeMs) ? p.bestTimeMs : null;
+        const medal = typeof p.medal === 'string' && p.medal in MEDAL_RANK ? (p.medal as MedalTier) : 'none';
+        out[Number(id)] = {
+          bestTimeMs: best,
+          medal,
+          clears: typeof p.clears === 'number' ? p.clears : 0,
+          bestCheckpointSplitsMs: isPlainObject(p.bestCheckpointSplitsMs)
+            ? (p.bestCheckpointSplitsMs as Record<string, number>)
+            : undefined,
+        } as LevelProgress;
+      }
+      return out;
     }
   } catch {
     // ignore storage errors
@@ -74,7 +94,15 @@ function loadSavedGhosts(): Record<number, GhostReplayData> {
   try {
     const raw = localStorage.getItem(STORAGE_KEY_GHOSTS);
     if (raw) {
-      return JSON.parse(raw);
+      const parsed: unknown = JSON.parse(raw);
+      if (!isPlainObject(parsed)) return {};
+      const out: Record<number, GhostReplayData> = {};
+      for (const [id, g] of Object.entries(parsed)) {
+        if (isPlainObject(g) && Array.isArray(g.frames) && g.frames.length >= 2 && isPlainObject(g.avatar)) {
+          out[Number(id)] = g as unknown as GhostReplayData;
+        }
+      }
+      return out;
     }
   } catch {
     // ignore storage errors
@@ -163,6 +191,8 @@ interface GameStore {
 
   lastEarnedMedal: MedalTier;
   isNewRecord: boolean;
+  /** The new PB's ghost made it into localStorage (false if storage is full/blocked). */
+  ghostSaved: boolean;
   soundMuted: boolean;
   showGhost: boolean;
   graphicsQuality: GraphicsQuality;
@@ -175,6 +205,8 @@ interface GameStore {
 
   // Summit Multiplayer & Lobby State
   summitLobby: SummitLobbyState;
+  /** Bumped on every explicit "launch climb": the Summit socket reconnects only on this. */
+  summitSession: number;
   remoteClimbers: RemoteClimberState[];
   summitBestAltitudeM: number;
 
@@ -211,6 +243,39 @@ interface GameStore {
   recordPeakAltitude: (altM: number) => void;
 }
 
+/** Keeps every Nth frame (plus the last) to shrink a ghost that does not fit in storage. */
+function thinFrames(frames: GhostFrame[], step: number): GhostFrame[] {
+  if (frames.length <= 3) return frames;
+  const out = frames.filter((_, i) => i % step === 0);
+  if (out[out.length - 1] !== frames[frames.length - 1]) out.push(frames[frames.length - 1]);
+  return out;
+}
+
+/**
+ * Writes ghosts to localStorage. On quota errors it first halves the frame rate of the
+ * other levels' ghosts, then of this one, before giving up (returns false; the ghost
+ * still races in memory for this session).
+ */
+function persistGhosts(ghosts: Record<number, GhostReplayData>, levelId: number): boolean {
+  const attempt = (g: Record<number, GhostReplayData>) => {
+    try {
+      localStorage.setItem(STORAGE_KEY_GHOSTS, JSON.stringify(g));
+      return true;
+    } catch {
+      return false;
+    }
+  };
+  if (attempt(ghosts)) return true;
+  const thinned: Record<number, GhostReplayData> = {};
+  for (const [id, g] of Object.entries(ghosts)) {
+    thinned[Number(id)] = Number(id) === levelId ? g : { ...g, frames: thinFrames(g.frames, 2) };
+  }
+  if (attempt(thinned)) return true;
+  const own = thinned[levelId];
+  if (own) thinned[levelId] = { ...own, frames: thinFrames(own.frames, 2) };
+  return attempt(thinned);
+}
+
 const MEDAL_RANK: Record<MedalTier, number> = {
   none: 0,
   bronze: 1,
@@ -242,6 +307,7 @@ export const useGameStore = create<GameStore>((set, get) => ({
 
   lastEarnedMedal: 'none',
   isNewRecord: false,
+  ghostSaved: false,
   soundMuted: initialSoundMuted,
   showGhost: true,
   graphicsQuality: loadSavedGraphicsQuality(),
@@ -261,6 +327,7 @@ export const useGameStore = create<GameStore>((set, get) => ({
     isConnected: false,
     errorMessage: null,
   },
+  summitSession: 0,
   remoteClimbers: [],
   summitBestAltitudeM: loadSavedSummitPeak(),
 
@@ -302,6 +369,7 @@ export const useGameStore = create<GameStore>((set, get) => ({
       checkpointWarningMessage: null,
       lastEarnedMedal: 'none',
       isNewRecord: false,
+      ghostSaved: false,
     }));
   },
 
@@ -336,6 +404,7 @@ export const useGameStore = create<GameStore>((set, get) => ({
       checkpointWarningMessage: null,
       lastEarnedMedal: 'none',
       isNewRecord: false,
+      ghostSaved: false,
     }));
   },
 
@@ -391,9 +460,10 @@ export const useGameStore = create<GameStore>((set, get) => ({
     const splitTimeMs = Math.round(elapsedMs);
 
     // Compare against saved Personal Best checkpoint split
+    // Progress holds the splits of the actual PB; the ghost only when it could be saved.
     const pbSplits =
-      ghosts[currentLevelId]?.checkpointSplitsMs ||
-      progress[currentLevelId]?.bestCheckpointSplitsMs;
+      progress[currentLevelId]?.bestCheckpointSplitsMs ||
+      ghosts[currentLevelId]?.checkpointSplitsMs;
     const pbSplitTime = pbSplits?.[checkpointId] ?? null;
     const deltaMs = pbSplitTime !== null ? splitTimeMs - pbSplitTime : null;
 
@@ -443,8 +513,9 @@ export const useGameStore = create<GameStore>((set, get) => ({
   },
 
   collectGem: (gemId, bonusMs) => {
-    const { collectedGems, elapsedMs, bonusTimeSavedMs } = get();
-    if (collectedGems.includes(gemId)) return;
+    const { collectedGems, elapsedMs, bonusTimeSavedMs, playPhase } = get();
+    // Only while the clock runs: no bonus during the countdown, a fall-out or after the goal.
+    if (playPhase !== 'playing' || collectedGems.includes(gemId)) return;
     soundFX.playGemPickup();
     set({
       collectedGems: [...collectedGems, gemId],
@@ -454,8 +525,8 @@ export const useGameStore = create<GameStore>((set, get) => ({
   },
 
   activateSwitch: (switchId) => {
-    const { activatedSwitches } = get();
-    if (activatedSwitches[switchId]) return;
+    const { activatedSwitches, playPhase } = get();
+    if (activatedSwitches[switchId] || playPhase === 'goal') return;
     soundFX.playSwitchActivate();
     set({
       activatedSwitches: {
@@ -522,6 +593,7 @@ export const useGameStore = create<GameStore>((set, get) => ({
     };
 
     let updatedGhosts = ghosts;
+    let ghostSaved = false;
     if (isNewRecord && currentRunGhostBuffer.frames.length > 2) {
       const [bx, by, bz] = livePhysics.ballPosition;
       const finalFrames: GhostFrame[] = [
@@ -543,11 +615,12 @@ export const useGameStore = create<GameStore>((set, get) => ({
           checkpointSplitsMs: { ...currentRunSplitsMs },
         },
       };
-      try {
-        localStorage.setItem(STORAGE_KEY_GHOSTS, JSON.stringify(updatedGhosts));
-      } catch {
-        // ignore storage errors
-      }
+      ghostSaved = persistGhosts(updatedGhosts, currentLevelId);
+    } else if (isNewRecord && ghosts[currentLevelId]) {
+      // A PB without a recording (should not happen) must not keep racing a slower ghost.
+      const { [currentLevelId]: _stale, ...rest } = ghosts;
+      updatedGhosts = rest;
+      persistGhosts(updatedGhosts, currentLevelId);
     }
 
     try {
@@ -562,6 +635,7 @@ export const useGameStore = create<GameStore>((set, get) => ({
       ghosts: updatedGhosts,
       lastEarnedMedal: earnedMedal,
       isNewRecord,
+      ghostSaved,
     });
   },
 
@@ -634,8 +708,11 @@ export const useGameStore = create<GameStore>((set, get) => ({
       summitLobby: {
         ...state.summitLobby,
         ...lobbyConfig,
+        isConnected: false,
         errorMessage: null,
       },
+      summitSession: state.summitSession + 1,
+      remoteClimbers: [],
     }));
     get().selectLevel(SUMMIT_LEVEL_ID);
   },

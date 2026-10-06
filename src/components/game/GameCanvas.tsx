@@ -159,6 +159,8 @@ const SKY_THEMES: Record<
   },
 };
 
+const Y_AXIS = new THREE.Vector3(0, 1, 0);
+
 /**
  * Sky + far horizon. The group follows the orb and leans with the board tilt (the tilt
  * cue), so everything inside reads as infinitely far away.
@@ -174,6 +176,10 @@ function HorizonEnvironment({
 }) {
   const horizonRef = useRef<THREE.Group>(null);
   const look = SKY_LOOKS[preset] || SKY_LOOKS.day;
+  const scratch = useMemo(
+    () => ({ qYaw: new THREE.Quaternion(), qInv: new THREE.Quaternion(), qTilt: new THREE.Quaternion(), e: new THREE.Euler(0, 0, 0, 'YXZ') }),
+    []
+  );
 
   useFrame((_, delta) => {
     if (!horizonRef.current) return;
@@ -184,12 +190,11 @@ function HorizonEnvironment({
 
     horizonRef.current.position.set(bx, by, bz);
 
-    const qYaw = new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 1, 0), yaw);
-    const qYawInv = qYaw.clone().invert();
-    const qTilt = new THREE.Quaternion().setFromEuler(
-      new THREE.Euler(pitch * 0.42, 0, -roll * 0.36, 'YXZ')
-    );
-    const targetQ = qYaw.multiply(qTilt).multiply(qYawInv);
+    const { qYaw, qInv, qTilt, e } = scratch;
+    qYaw.setFromAxisAngle(Y_AXIS, yaw);
+    qInv.copy(qYaw).invert();
+    qTilt.setFromEuler(e.set(pitch * 0.42, 0, -roll * 0.36, 'YXZ'));
+    const targetQ = qYaw.multiply(qTilt).multiply(qInv);
     // Frame-rate independent follow (same as PR #2): equivalent to the previous fixed
     // 0.15/frame slerp at 60 fps (rate = -60 * ln(0.85) ~= 9.75/s).
     const dt = Math.min(delta, 0.05);

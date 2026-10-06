@@ -1,6 +1,7 @@
-import { useRef } from 'react';
+import { Suspense, useRef } from 'react';
 import { useFrame } from '@react-three/fiber';
 import { Text } from '@react-three/drei';
+import { DISPLAY_FONT_URL } from '../../graphics/stickerLabels';
 import { CuboidCollider, RigidBody } from '@react-three/rapier';
 import * as THREE from 'three';
 import { useGameStore } from '../../store/useGameStore';
@@ -104,23 +105,30 @@ export function CheckpointGate({
       </mesh>
 
       {/* Digital Sector Sign */}
-      <Text
-        position={[0, 3.05, 0.25]}
-        fontSize={label ? (width > 6 ? 0.34 : 0.22) : 0.26}
-        color={isCrossed ? '#6ee7b7' : '#e0f2fe'}
-        anchorX="center"
-        anchorY="middle"
-        outlineWidth={0.022}
-        outlineColor="#090d16"
-      >
-        {label
-          ? isCrossed
-            ? `✓ ${label}`
-            : label
-          : isCrossed
-            ? `✓ CP 0${order}`
-            : `CHECKPOINT 0${order}`}
-      </Text>
+      {/* drei <Text> suspends while troika loads the font and builds glyphs: keep that
+          local so the course (and the run timer) never waits on the gate label. */}
+      <Suspense fallback={null}>
+        <Text
+          font={DISPLAY_FONT_URL}
+          position={[0, 3.05, 0.25]}
+          fontSize={label ? (width > 6 ? 0.36 : 0.24) : 0.28}
+          color={isCrossed ? '#25d49b' : '#fff3dc'}
+          anchorX="center"
+          anchorY="middle"
+          outlineWidth={0.03}
+          outlineColor="#1d1433"
+          maxWidth={Math.max(2, width - 0.5)}
+          textAlign="center"
+        >
+          {label
+            ? isCrossed
+              ? `${label} · CLEAR`
+              : label
+            : isCrossed
+              ? `CP ${order} · CLEAR`
+              : `CHECKPOINT ${order}`}
+        </Text>
+      </Suspense>
 
       {/* Holographic energy curtain (animated shader) */}
       <mesh

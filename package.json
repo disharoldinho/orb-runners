@@ -12,7 +12,8 @@
     "preview": "vite preview",
     "summit:waypoints": "node scripts/genSummitWaypoints.mjs",
     "summit:verify": "node scripts/verifySummit.mjs",
-    "maps:check": "node scripts/checkMapVisuals.mjs"
+    "maps:check": "node scripts/checkMapVisuals.mjs",
+    "server:test": "node scripts/testSummitServer.mjs"
   },
   "dependencies": {
     "@react-three/drei": "^9.117.3",

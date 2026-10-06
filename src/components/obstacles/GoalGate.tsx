@@ -1,6 +1,7 @@
-import { useRef } from 'react';
+import { Suspense, useRef } from 'react';
 import { useFrame } from '@react-three/fiber';
 import { Text } from '@react-three/drei';
+import { DISPLAY_FONT_URL } from '../../graphics/stickerLabels';
 import { BallCollider, CuboidCollider, RapierRigidBody, RigidBody } from '@react-three/rapier';
 import confetti from 'canvas-confetti';
 import * as THREE from 'three';
@@ -118,17 +119,22 @@ export function GoalGate({
       </mesh>
 
       {/* 3D "GOAL" Text on Front & Back of Archway */}
-      <Text
-        position={[0, 3.3, 0.28]}
-        fontSize={0.38}
-        color="#ffffff"
-        anchorX="center"
-        anchorY="middle"
-        outlineWidth={0.03}
-        outlineColor="#090d16"
-      >
-        GOAL
-      </Text>
+      {/* drei <Text> suspends while troika loads the font and builds glyphs: keep that
+          local so the course (and the run timer) never waits on the gate label. */}
+      <Suspense fallback={null}>
+        <Text
+          font={DISPLAY_FONT_URL}
+          position={[0, 3.3, 0.28]}
+          fontSize={0.42}
+          color="#ffc531"
+          anchorX="center"
+          anchorY="middle"
+          outlineWidth={0.035}
+          outlineColor="#1d1433"
+        >
+          GOAL
+        </Text>
+      </Suspense>
 
       {/* Swirling goal vortex + golden landmark beam */}
       {playPhase !== 'goal' && (

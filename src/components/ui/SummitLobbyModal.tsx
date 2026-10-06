@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useGameStore } from '../../store/useGameStore';
-import { SummitPoster } from './brand';
+import { SummitPhaseStrip, SummitPoster } from './brand';
 import { Icon } from './icons';
 
 function generateRandomCode(): string {
@@ -145,6 +145,7 @@ export function SummitLobbyModal() {
               9 themed stages on one spiral road, from the meadow base camp to the golden crown at
               250 m. Pass the 8 camps in order.
             </p>
+            <SummitPhaseStrip compact />
             <label className="field">
               <span>Climber name</span>
               <input

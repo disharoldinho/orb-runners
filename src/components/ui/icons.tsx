@@ -413,22 +413,6 @@ export function Icon({
   );
 }
 
-/** Summit emotes: the network payload stays the original emoji (protocol compatible),
- *  the UI shows the custom sticker icon. */
-export const EMOTES: {
-  key: string;
-  payload: string;
-  icon: IconName;
-  label: string;
-  color: string;
-}[] = [
-  { key: '1', payload: '👋', icon: 'wave', label: 'Wave', color: '#ffc531' },
-  { key: '2', payload: '🔥', icon: 'flame', label: 'Fire', color: '#ff5b3a' },
-  { key: '3', payload: '😱', icon: 'whoa', label: 'Whoa', color: '#3fa9ff' },
-  { key: '4', payload: '👑', icon: 'crown', label: 'Crown', color: '#25d49b' },
-];
-
-/** Flat medal disc used in the HUD, results card and level list. */
 export function MedalDisc({
   tier,
   size = 18,

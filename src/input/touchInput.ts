@@ -36,14 +36,20 @@ const GYRO_SMOOTH_TIME = 0.07;
 
 type PermissionFn = () => Promise<'granted' | 'denied' | 'default'>;
 
-let latestBeta: number | null = null;
-let latestGamma: number | null = null;
-let neutral: { beta: number; gamma: number } | null = null;
+type Vec3 = [number, number, number];
+
+/** Latest world-up direction in device coordinates (x right, y top edge, z out of screen). */
+let latestUp: Vec3 | null = null;
+/** Calibrated "level" frame in device coordinates: neutral up + screen-aligned axes. */
+let neutral: { up: Vec3; right: Vec3; forward: Vec3 } | null = null;
 let lastEventTime = 0;
 let listening = false;
 
-function wrapDeg(d: number): number {
-  return ((((d + 180) % 360) + 360) % 360) - 180;
+const DEG = Math.PI / 180;
+const dot = (a: Vec3, b: Vec3) => a[0] * b[0] + a[1] * b[1] + a[2] * b[2];
+function normalize(v: Vec3): Vec3 {
+  const l = Math.hypot(v[0], v[1], v[2]) || 1;
+  return [v[0] / l, v[1] / l, v[2] / l];
 }
 
 function screenAngle(): number {
@@ -55,33 +61,60 @@ function screenAngle(): number {
 }
 
 /**
- * Convert beta/gamma deltas (device frame) into screen-relative
- * [right, forward] tilt, accounting for the current screen rotation.
- * forward = top edge of the screen tipped away from the player.
+ * World "up" in device coordinates from the W3C Z-X'-Y'' Euler angles. Unlike raw
+ * beta/gamma deltas this has no gimbal flip: gamma jumps 90 -> -90 (and beta by 180) when
+ * the phone passes vertical, which used to throw full opposite tilt when holding the phone
+ * upright in landscape. Alpha (compass heading) does not affect gravity.
  */
-function toScreenTilt(dBeta: number, dGamma: number): [number, number] {
-  switch (screenAngle()) {
+function deviceUp(betaDeg: number, gammaDeg: number): Vec3 {
+  const b = betaDeg * DEG;
+  const g = gammaDeg * DEG;
+  return [-Math.cos(b) * Math.sin(g), Math.sin(b), Math.cos(b) * Math.cos(g)];
+}
+
+/** Screen right / top directions in device coordinates for a screen rotation. */
+function screenAxes(angle = screenAngle()): { right: Vec3; top: Vec3 } {
+  switch (angle) {
     case 90:
-      return [dBeta, dGamma];
+      return { right: [0, -1, 0], top: [1, 0, 0] };
     case 180:
-      return [-dGamma, dBeta];
+      return { right: [-1, 0, 0], top: [0, -1, 0] };
     case 270:
-      return [-dBeta, -dGamma];
+      return { right: [0, 1, 0], top: [-1, 0, 0] };
     default:
-      return [dGamma, -dBeta];
+      return { right: [1, 0, 0], top: [0, 1, 0] };
   }
+}
+
+/** Level frame: neutral up plus the screen axes made orthogonal to it. */
+function makeNeutral(up: Vec3, axes = screenAxes()) {
+  const { right: sr, top: st } = axes;
+  const r = normalize([sr[0] - dot(sr, up) * up[0], sr[1] - dot(sr, up) * up[1], sr[2] - dot(sr, up) * up[2]]);
+  let f: Vec3 = [
+    st[0] - dot(st, up) * up[0] - dot(st, r) * r[0],
+    st[1] - dot(st, up) * up[1] - dot(st, r) * r[1],
+    st[2] - dot(st, up) * up[2] - dot(st, r) * r[2],
+  ];
+  f = normalize(f);
+  return { up, right: r, forward: f };
+}
+
+/**
+ * Tilt (degrees) relative to the calibrated level pose: right edge down => +right, top edge
+ * tipped away => +forward (world up leans toward the raised side in device coordinates).
+ */
+function tiltDeg(up: Vec3, n: { right: Vec3; forward: Vec3 }): [number, number] {
+  const asinDeg = (v: number) => Math.asin(Math.max(-1, Math.min(1, v))) / DEG;
+  return [asinDeg(-dot(up, n.right)), asinDeg(-dot(up, n.forward))];
 }
 
 function onOrientation(e: DeviceOrientationEvent) {
   if (e.beta == null || e.gamma == null) return;
-  latestBeta = e.beta;
-  latestGamma = e.gamma;
-  if (!neutral) neutral = { beta: e.beta, gamma: e.gamma };
+  const up = deviceUp(e.beta, e.gamma);
+  latestUp = up;
+  if (!neutral) neutral = makeNeutral(up);
 
-  const [right, forward] = toScreenTilt(
-    wrapDeg(e.beta - neutral.beta),
-    wrapDeg(e.gamma - neutral.gamma)
-  );
+  const [right, forward] = tiltDeg(up, neutral);
   let x = right / GYRO_FULL_TILT_DEG;
   let y = -forward / GYRO_FULL_TILT_DEG; // y = down, like a stick
   const mag = Math.hypot(x, y);
@@ -100,6 +133,16 @@ function onOrientation(e: DeviceOrientationEvent) {
   const k = 1 - Math.exp(-dt / GYRO_SMOOTH_TIME);
   touchInput.gyroX += (x - touchInput.gyroX) * k;
   touchInput.gyroY += (y - touchInput.gyroY) * k;
+}
+
+/** Exposed for tests: [right, forward] tilt in degrees for a pose vs. a neutral pose. */
+export function gyroTiltDeg(
+  neutralBetaGamma: [number, number],
+  betaGamma: [number, number],
+  angle = 0
+): [number, number] {
+  const n = makeNeutral(deviceUp(...neutralBetaGamma), screenAxes(angle));
+  return tiltDeg(deviceUp(...betaGamma), n);
 }
 
 /** Re-zero on rotation: the neutral pose in the new orientation is different. */
@@ -152,14 +195,13 @@ export function disableGyro() {
   touchInput.gyroX = 0;
   touchInput.gyroY = 0;
   neutral = null;
-  latestBeta = null;
-  latestGamma = null;
+  latestUp = null;
   lastEventTime = 0;
 }
 
 /** Treat the phone's current angle as "level". */
 export function recalibrateGyro() {
-  neutral = latestBeta != null && latestGamma != null ? { beta: latestBeta, gamma: latestGamma } : null;
+  neutral = latestUp ? makeNeutral(latestUp) : null;
   touchInput.gyroX = 0;
   touchInput.gyroY = 0;
 }

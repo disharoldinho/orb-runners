@@ -195,32 +195,36 @@ export function PlayerOrb({ spawnPosition, killPlaneY, respawnFallDepth }: Playe
     floorWaitS.current = 0;
   }, [runAttemptId, spawnPosition]);
 
-  // Trackmania Standing Checkpoint Respawn (C / Backspace / Gamepad B)
+  // Trackmania Standing Checkpoint Respawn (C / Backspace / Gamepad B).
+  // Keyed on the respawn tick ONLY: crossing a new checkpoint changes activeSpawnPosition,
+  // and reacting to that teleported the rolling orb back onto the pad (killing its speed)
+  // on every checkpoint after the first respawn of a run.
+  const spawnRef = useRef({ pos: activeSpawnPosition, yaw: activeSpawnYaw });
+  spawnRef.current = { pos: activeSpawnPosition, yaw: activeSpawnYaw };
   useEffect(() => {
     if (checkpointRespawnTick === 0) return;
     const rb = bodyRef.current;
     if (!rb) return;
-    rb.setTranslation(
-      {
-        x: activeSpawnPosition[0],
-        y: activeSpawnPosition[1],
-        z: activeSpawnPosition[2],
-      },
-      true
-    );
+    const { pos, yaw } = spawnRef.current;
+    rb.setTranslation({ x: pos[0], y: pos[1], z: pos[2] }, true);
     rb.setLinvel({ x: 0, y: 0, z: 0 }, true);
     rb.setAngvel({ x: 0, y: 0, z: 0 }, true);
     rb.setRotation({ x: 0, y: 0, z: 0, w: 1 }, true);
-    charYaw.current = activeSpawnYaw + Math.PI;
+    charYaw.current = yaw + Math.PI;
 
-    spawnParticleBurst(activeSpawnPosition, '#10b981', 20, 6.0, 0.14);
-    spawnShockwave(
-      [activeSpawnPosition[0], activeSpawnPosition[1] - 0.4, activeSpawnPosition[2]],
-      '#10b981',
-      2.6,
-      0.4
-    );
-  }, [checkpointRespawnTick, activeSpawnPosition, activeSpawnYaw]);
+    spawnParticleBurst(pos, '#10b981', 20, 6.0, 0.14);
+    spawnShockwave([pos[0], pos[1] - 0.4, pos[2]], '#10b981', 2.6, 0.4);
+  }, [checkpointRespawnTick]);
+
+  // Scratch objects (no per-frame allocations in the hot loop).
+  const scratch = useMemo(
+    () => ({
+      euler: new THREE.Euler(0, 0, 0, 'YXZ'),
+      quat: new THREE.Quaternion(),
+      spawnRay: new rapier.Ray({ x: 0, y: 0, z: 0 }, { x: 0, y: -1, z: 0 }),
+    }),
+    [rapier]
+  );
 
   useFrame((_, delta) => {
     const dt = Math.min(delta, 0.05);
@@ -229,10 +233,8 @@ export function PlayerOrb({ spawnPosition, killPlaneY, respawnFallDepth }: Playe
 
     if (!floorReady.current) {
       floorWaitS.current += dt;
-      const ray = new spawnGuardPhysics.rapier.Ray(
-        { x: spawnPosition[0], y: spawnPosition[1], z: spawnPosition[2] },
-        { x: 0, y: -1, z: 0 }
-      );
+      const ray = scratch.spawnRay;
+      ray.origin = { x: spawnPosition[0], y: spawnPosition[1], z: spawnPosition[2] };
       const hit = spawnGuardPhysics.world.castRay(ray, 4, true, undefined, undefined, undefined, rb);
       if (hit || floorWaitS.current > 4) floorReady.current = true;
     }
@@ -289,9 +291,9 @@ export function PlayerOrb({ spawnPosition, killPlaneY, respawnFallDepth }: Playe
       const leanPitch = THREE.MathUtils.clamp(horizSpeed * 0.028, 0, 0.22);
       const leanRoll = -livePhysics.tiltRoll * 0.35;
 
-      const euler = new THREE.Euler(leanPitch, charYaw.current, leanRoll, 'YXZ');
+      scratch.euler.set(leanPitch, charYaw.current, leanRoll, 'YXZ');
       characterGroupRef.current.quaternion.slerp(
-        new THREE.Quaternion().setFromEuler(euler),
+        scratch.quat.setFromEuler(scratch.euler),
         1 - Math.exp(-10 * dt)
       );
     }

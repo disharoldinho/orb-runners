@@ -143,8 +143,8 @@ export function WindZone({
       if (!m) return;
       const s = streaks[i];
       const travel = ((t * (0.35 + strength * 0.9) + s.offset) % 1) - 0.5;
-      const along = dir.clone().multiplyScalar(travel * extent);
-      m.position.set(s.u * sx + along.x, (s.v - 0.5) * sy + along.y, s.w * sz + along.z);
+      const k = travel * extent;
+      m.position.set(s.u * sx + dir.x * k, (s.v - 0.5) * sy + dir.y * k, s.w * sz + dir.z * k);
       const mat = m.material as THREE.MeshBasicMaterial;
       mat.opacity = telegraph ? 0.45 : strength * 0.55;
     });

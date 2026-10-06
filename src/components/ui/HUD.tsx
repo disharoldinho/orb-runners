@@ -5,8 +5,10 @@ import { getLevelById, livePhysics, useGameStore } from '../../store/useGameStor
 import { useUiStore } from '../../store/useUiStore';
 import { MAX_TILT_RAD } from '../game/TiltController';
 import { HudMenuSheet } from './HudMenuSheet';
-import { EMOTES, Icon, MedalDisc } from './icons';
+import { Icon, MedalDisc } from './icons';
+import { EMOTES, emoteWirePayload } from './emotes';
 import { soundFX } from './SoundManager';
+import { summitPhaseArt } from '../../art';
 
 export function formatTimeMs(ms: number): string {
   const totalSec = Math.floor(ms / 1000);
@@ -43,20 +45,51 @@ const MEDAL_LABEL: Record<string, string> = {
   none: 'Finished',
 };
 
+function useThrottledRemoteClimbers(ms: number) {
+  const [climbers, setClimbers] = useState(() => useGameStore.getState().remoteClimbers);
+  useEffect(() => {
+    let last = 0;
+    let timer: number | null = null;
+    const push = () => {
+      last = performance.now();
+      timer = null;
+      setClimbers(useGameStore.getState().remoteClimbers);
+    };
+    const unsub = useGameStore.subscribe((state, prev) => {
+      if (state.remoteClimbers === prev.remoteClimbers) return;
+      // Clearing the list (leaving the Summit) applies immediately.
+      if (state.remoteClimbers.length === 0) {
+        if (timer !== null) window.clearTimeout(timer);
+        push();
+        return;
+      }
+      if (timer !== null) return;
+      const wait = Math.max(0, ms - (performance.now() - last));
+      timer = window.setTimeout(push, wait);
+    });
+    return () => {
+      unsub();
+      if (timer !== null) window.clearTimeout(timer);
+    };
+  }, [ms]);
+  return climbers;
+}
+
 export function HUD() {
   const currentLevelId = useGameStore((s) => s.currentLevelId);
   const playPhase = useGameStore((s) => s.playPhase);
   const runAttemptId = useGameStore((s) => s.runAttemptId);
-  const elapsedMs = useGameStore((s) => s.elapsedMs);
   const bonusTimeSavedMs = useGameStore((s) => s.bonusTimeSavedMs);
   const crossedCheckpoints = useGameStore((s) => s.crossedCheckpoints);
   const activeSplitBanner = useGameStore((s) => s.activeSplitBanner);
   const checkpointWarningMessage = useGameStore((s) => s.checkpointWarningMessage);
   const lastEarnedMedal = useGameStore((s) => s.lastEarnedMedal);
   const isNewRecord = useGameStore((s) => s.isNewRecord);
+  const ghostSaved = useGameStore((s) => s.ghostSaved);
   const gamepadConnected = useGameStore((s) => s.gamepadConnected);
   const avatar = useGameStore((s) => s.avatar);
-  const remoteClimbers = useGameStore((s) => s.remoteClimbers);
+  // Leaderboard / rail only need ~4 Hz; the socket updates climbers at 20 Hz.
+  const remoteClimbers = useThrottledRemoteClimbers(250);
   const summitLobby = useGameStore((s) => s.summitLobby);
 
   const setPlayPhase = useGameStore((s) => s.setPlayPhase);
@@ -83,6 +116,7 @@ export function HUD() {
   const [showSplitPopup, setShowSplitPopup] = useState(false);
   const [hudLocalAltM, setHudLocalAltM] = useState(0);
 
+  const timerRef = useRef<HTMLDivElement>(null);
   const tiltDotRef = useRef<HTMLDivElement>(null);
   const speedRefs = useRef<(HTMLSpanElement | null)[]>([]);
   const ghostSplitRef = useRef<HTMLDivElement>(null);
@@ -95,7 +129,7 @@ export function HUD() {
   const railFillRef = useRef<HTMLDivElement>(null);
   const railYouRef = useRef<HTMLDivElement>(null);
 
-  // Keyboard: G ghost, 1-4 Summit emotes, Esc run menu.
+  // Keyboard: G ghost, 1-8 Summit emotes, Esc run menu.
   useEffect(() => {
     const onKeyDown = (e: KeyboardEvent) => {
       if (e.code === 'Escape') {
@@ -106,7 +140,7 @@ export function HUD() {
         toggleGhost();
       } else if (isSummit) {
         const em = EMOTES.find((x) => e.code === `Digit${x.key}`);
-        if (em) triggerEmote(em.payload);
+        if (em) triggerEmote(emoteWirePayload(em));
       }
     };
     window.addEventListener('keydown', onKeyDown);
@@ -177,6 +211,10 @@ export function HUD() {
   useEffect(() => {
     let rafId = 0;
     const updateLoop = () => {
+      if (timerRef.current) {
+        const t = formatTimeMs(useGameStore.getState().elapsedMs);
+        if (timerRef.current.textContent !== t) timerRef.current.textContent = t;
+      }
       if (tiltDotRef.current) {
         const normX = (livePhysics.tiltRoll / MAX_TILT_RAD) * 26;
         const normY = (-livePhysics.tiltPitch / MAX_TILT_RAD) * 26;
@@ -290,7 +328,9 @@ export function HUD() {
       {/* ---------- Top-centre: the one essential plate ---------- */}
       <div className="hud-center">
         <div className="hud-timer" data-testid="hud-timer">
-          <div className="hud-timer-digits">{formatTimeMs(elapsedMs)}</div>
+          <div className="hud-timer-digits" ref={timerRef}>
+            {formatTimeMs(useGameStore.getState().elapsedMs)}
+          </div>
           <div className="hud-timer-sub">
             <span className="hud-speed compact-only">
               <Icon name="bolt" size={12} />
@@ -427,12 +467,12 @@ export function HUD() {
           <div className="hud-emotes">
             {EMOTES.map((em) => (
               <button
-                key={em.key}
-                onClick={() => triggerEmote(em.payload)}
+                key={em.id}
+                onClick={() => triggerEmote(emoteWirePayload(em))}
                 title={`${em.label} emote (key ${em.key})`}
-                style={{ ['--emote' as string]: em.color }}
+                aria-label={`${em.label} emote`}
               >
-                <Icon name={em.icon} size={18} />
+                <img src={em.art} alt="" draggable={false} />
                 <kbd>{em.key}</kbd>
               </button>
             ))}
@@ -455,10 +495,20 @@ export function HUD() {
 
       {/* ---------- Transient banners ---------- */}
       {showSplitPopup && activeSplitBanner && playPhase === 'playing' && (
-        <div className="hud-split">
+        <div className={`hud-split ${isSummit ? 'has-art' : ''}`}>
+          {isSummit && (
+            <img
+              className="hud-split-art"
+              src={summitPhaseArt(getSummitStageByCamps(activeSplitBanner.order).id)}
+              alt=""
+              draggable={false}
+            />
+          )}
           <div className="hud-split-head">
             {isSummit
-              ? `Camp ${activeSplitBanner.order} reached`
+              ? `Camp ${activeSplitBanner.order} · next: ${shortStageName(
+                  getSummitStageByCamps(activeSplitBanner.order).name
+                )}`
               : `Checkpoint ${activeSplitBanner.order}/${activeSplitBanner.totalCheckpoints}`}
           </div>
           <div className="hud-split-row">
@@ -521,8 +571,10 @@ export function HUD() {
               </div>
               <div className="results-time">
                 <small>Clear time</small>
-                <strong>{formatTimeMs(elapsedMs)}</strong>
-                {isNewRecord && <span className="results-stamp">New PB · ghost saved</span>}
+                <strong>{formatTimeMs(useGameStore.getState().elapsedMs)}</strong>
+                {isNewRecord && (
+                  <span className="results-stamp">{ghostSaved ? 'New PB · ghost saved' : 'New PB'}</span>
+                )}
               </div>
             </div>
             {!isSummit && (

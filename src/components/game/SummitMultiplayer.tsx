@@ -1,12 +1,12 @@
 import { useEffect, useRef } from 'react';
 import { useFrame } from '@react-three/fiber';
-import { Billboard, Text } from '@react-three/drei';
 import * as THREE from 'three';
 import { SUMMIT_BOT_WAYPOINTS, SUMMIT_LEVEL_ID } from '../../levels/summitMap';
 import { livePhysics, useGameStore } from '../../store/useGameStore';
 import { RemoteClimberState } from '../../types/game';
 import { CharacterModel } from './CharacterModel';
 import { ORB_RADIUS, OrbShell } from './PlayerOrb';
+import { EmoteBubble, NameTag } from './StickerTags';
 
 const FALLBACK_BOTS: Omit<
   RemoteClimberState,
@@ -74,11 +74,17 @@ const FALLBACK_BOTS: Omit<
   },
 ];
 
+const UP = new THREE.Vector3(0, 1, 0);
+
 function RemoteClimberMesh({ climber }: { climber: RemoteClimberState }) {
   const outerGroupRef = useRef<THREE.Group>(null);
   const shellMeshRef = useRef<THREE.Group>(null);
   const charGroupRef = useRef<THREE.Group>(null);
   const targetPos = useRef(new THREE.Vector3(...climber.position));
+  const targetQ = useRef(new THREE.Quaternion());
+  const yawRef = useRef(climber.yaw);
+  yawRef.current = climber.yaw;
+  const snapped = useRef(false);
 
   useEffect(() => {
     targetPos.current.set(climber.position[0], climber.position[1], climber.position[2]);
@@ -86,40 +92,33 @@ function RemoteClimberMesh({ climber }: { climber: RemoteClimberState }) {
 
   useFrame((_, delta) => {
     const dt = Math.min(delta, 0.05);
-    if (!outerGroupRef.current) return;
-
-    const prevX = outerGroupRef.current.position.x;
-    const prevZ = outerGroupRef.current.position.z;
-
-    outerGroupRef.current.position.lerp(targetPos.current, 1 - Math.exp(-14 * dt));
-
-    const moveDist = Math.hypot(
-      outerGroupRef.current.position.x - prevX,
-      outerGroupRef.current.position.z - prevZ
-    );
-
+    const g = outerGroupRef.current;
+    if (!g) return;
+    // Teleports (respawn at camp, joining mid-climb) snap instead of sliding across the map.
+    if (!snapped.current || g.position.distanceToSquared(targetPos.current) > 36) {
+      g.position.copy(targetPos.current);
+      snapped.current = true;
+    }
+    const prevX = g.position.x;
+    const prevZ = g.position.z;
+    g.position.lerp(targetPos.current, 1 - Math.exp(-14 * dt));
+    const moveDist = Math.hypot(g.position.x - prevX, g.position.z - prevZ);
     if (shellMeshRef.current && moveDist > 0.0005) {
       shellMeshRef.current.rotation.x += (moveDist / ORB_RADIUS) * 0.85;
       shellMeshRef.current.rotation.z += (moveDist / ORB_RADIUS) * 0.35;
     }
-
     if (charGroupRef.current) {
-      const targetQ = new THREE.Quaternion().setFromAxisAngle(
-        new THREE.Vector3(0, 1, 0),
-        climber.yaw
-      );
-      charGroupRef.current.quaternion.slerp(targetQ, 1 - Math.exp(-10 * dt));
+      targetQ.current.setFromAxisAngle(UP, yawRef.current);
+      charGroupRef.current.quaternion.slerp(targetQ.current, 1 - Math.exp(-10 * dt));
     }
   });
 
+  const accent = climber.avatar?.primaryColor || '#3fa9ff';
   return (
     <group ref={outerGroupRef} position={climber.position}>
       {/* Rolling Outer Glass Shell */}
       <group ref={shellMeshRef}>
-        <OrbShell
-          style={climber.avatar?.orbStyle || 'clear'}
-          primaryColor={climber.avatar?.primaryColor || '#38bdf8'}
-        />
+        <OrbShell style={climber.avatar?.orbStyle || 'clear'} primaryColor={accent} />
       </group>
 
       {/* Upright Inner 3D Character */}
@@ -127,78 +126,36 @@ function RemoteClimberMesh({ climber }: { climber: RemoteClimberState }) {
         <CharacterModel config={climber.avatar} />
       </group>
 
-      {/* Floating Nametag, Live Altitude & Emote Billboard */}
-      <Billboard position={[0, ORB_RADIUS + 0.68, 0]}>
-        {climber.emote && (
-          <Text
-            position={[0, 0.56, 0]}
-            fontSize={0.48}
-            anchorX="center"
-            anchorY="middle"
-          >
-            {climber.emote}
-          </Text>
-        )}
-        <Text
-          position={[0, 0.14, 0]}
-          fontSize={0.21}
-          color="#ffffff"
-          anchorX="center"
-          anchorY="middle"
-          outlineWidth={0.025}
-          outlineColor="#090d16"
-        >
-          {climber.name}
-        </Text>
-        <Text
-          position={[0, -0.1, 0]}
-          fontSize={0.16}
-          color="#fbbf24"
-          anchorX="center"
-          anchorY="middle"
-          outlineWidth={0.02}
-          outlineColor="#090d16"
-        >
-          {`${climber.altitudeM}m`}
-        </Text>
-      </Billboard>
+      {/* Sticker name tag with live altitude, and the emote bubble above it */}
+      <NameTag
+        position={[0, ORB_RADIUS + 0.5, 0]}
+        spec={{
+          name: climber.name,
+          badge: `${climber.altitudeM}m`,
+          accent,
+          isBot: Boolean(climber.isBot),
+        }}
+      />
+      <EmoteBubble emote={climber.emote} position={[0, ORB_RADIUS + 1.12, 0]} />
     </group>
   );
 }
 
+const localEmote = () =>
+  livePhysics.localEmote && performance.now() - livePhysics.localEmoteTimestamp < 3200
+    ? livePhysics.localEmote
+    : null;
+
 function LocalPlayerEmoteBillboard() {
   const groupRef = useRef<THREE.Group>(null);
-  const emoteTextRef = useRef<{ text: string } | null>(null);
-  const activeEmoteRef = useRef<string | null>(null);
-
   useFrame(() => {
     if (!groupRef.current) return;
     const [bx, by, bz] = livePhysics.ballPosition;
-    groupRef.current.position.set(bx, by + ORB_RADIUS + 0.85, bz);
-
-    const isFresh =
-      livePhysics.localEmote && performance.now() - livePhysics.localEmoteTimestamp < 3200;
-    groupRef.current.visible = Boolean(isFresh);
-    if (isFresh && emoteTextRef.current && activeEmoteRef.current !== livePhysics.localEmote) {
-      activeEmoteRef.current = livePhysics.localEmote;
-      emoteTextRef.current.text = livePhysics.localEmote || '';
-    }
+    groupRef.current.position.set(bx, by, bz);
   });
-
   return (
-    <group ref={groupRef} visible={false}>
-      <Billboard>
-        <Text
-          ref={emoteTextRef}
-          fontSize={0.55}
-          anchorX="center"
-          anchorY="middle"
-          outlineWidth={0.03}
-          outlineColor="#090d16"
-        >
-          👋
-        </Text>
-      </Billboard>
+    <group ref={groupRef}>
+      <EmoteBubble getEmote={localEmote} position={[0, ORB_RADIUS + 0.95, 0]} />
     </group>
   );
 }
@@ -212,34 +169,52 @@ const FALLBACK_ROUTE_DIST: number[] = SUMMIT_BOT_WAYPOINTS.reduce<number[]>((acc
 }, []);
 const FALLBACK_ROUTE_LENGTH = FALLBACK_ROUTE_DIST[FALLBACK_ROUTE_DIST.length - 1];
 
+/** Reconnect backoff (ms) after the Summit socket drops; the last value repeats. */
+const RECONNECT_DELAYS_MS = [800, 1600, 3200, 6000, 10000];
+
 export function SummitMultiplayer() {
   const currentLevelId = useGameStore((s) => s.currentLevelId);
-  const summitLobby = useGameStore((s) => s.summitLobby);
+  const summitSession = useGameStore((s) => s.summitSession);
   const remoteClimbers = useGameStore((s) => s.remoteClimbers);
-  const setRemoteClimbers = useGameStore((s) => s.setRemoteClimbers);
-  const setSummitLobbyState = useGameStore((s) => s.setSummitLobbyState);
-  const setScreen = useGameStore((s) => s.setScreen);
-  const recordPeakAltitude = useGameStore((s) => s.recordPeakAltitude);
-
-  const clientIdRef = useRef<string | null>(null);
 
   useEffect(() => {
     if (currentLevelId !== SUMMIT_LEVEL_ID) return;
+    const store = useGameStore.getState;
+    const { setRemoteClimbers, setSummitLobbyState, setScreen, recordPeakAltitude } = store();
+
+    // What the player asked for when launching; reconnects rejoin what we actually got.
+    const requested = { ...store().summitLobby };
+    let joined: {
+      code: string;
+      name: string;
+      created: boolean;
+      password: string;
+      includeBots: boolean;
+    } | null = null;
 
     let ws: WebSocket | null = null;
-    let stateInterval: ReturnType<typeof setInterval> | null = null;
+    let clientId: string | null = null;
     let fallbackInterval: ReturnType<typeof setInterval> | null = null;
+    let reconnectTimer: ReturnType<typeof setTimeout> | null = null;
+    let attempts = 0;
     let isDisposed = false;
+    /** Stop reconnecting (e.g. the room is gone after a drop): play on with local bots. */
+    let gaveUp = false;
+
+    const stopFallbackBots = () => {
+      if (fallbackInterval) clearInterval(fallbackInterval);
+      fallbackInterval = null;
+    };
 
     const startOfflineFallbackBots = () => {
-      if (isDisposed) return;
-      const lobbyState = useGameStore.getState().summitLobby;
-      if (!lobbyState.includeBots) {
+      if (isDisposed || fallbackInterval) return;
+      const includeBots = joined ? joined.includeBots : requested.includeBots;
+      if (!includeBots) {
         setRemoteClimbers([]);
         return;
       }
       const startTime = performance.now() / 1000;
-      fallbackInterval = setInterval(() => {
+      const tick = () => {
         const elapsed = performance.now() / 1000 - startTime;
         const bots: RemoteClimberState[] = FALLBACK_BOTS.map((bot, idx) => {
           // Walk the real route at ~4.5-6 m/s, rest at the summit, then loop.
@@ -274,105 +249,170 @@ export function SummitMultiplayer() {
           };
         });
         setRemoteClimbers(bots);
-      }, 60);
+      };
+      tick();
+      fallbackInterval = setInterval(tick, 60);
     };
 
-    const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-    const wsUrl = `${protocol}//${window.location.host}/ws-summit`;
-
-    try {
-      ws = new WebSocket(wsUrl);
-    } catch {
-      startOfflineFallbackBots();
-      return;
-    }
-
-    ws.onopen = () => {
-      if (isDisposed || !ws) return;
-      const state = useGameStore.getState();
-      const actionMode =
-        state.summitLobby.mode === 'public'
-          ? 'public'
-          : state.summitLobby.action || 'join';
-
-      ws.send(
-        JSON.stringify({
-          type: 'join-or-create',
-          mode: actionMode,
-          lobbyCode: state.summitLobby.lobbyCode,
-          lobbyName: state.summitLobby.lobbyName,
-          password: state.summitLobby.password,
-          includeBots: state.summitLobby.includeBots,
-          climber: {
-            name: state.avatar.name || 'Runner',
-            position: livePhysics.ballPosition,
-            yaw: livePhysics.cameraYaw + Math.PI,
-            altitudeM: Math.round(livePhysics.currentAltitudeM),
-            peakAltitudeM: Math.round(livePhysics.peakAltitudeM),
-            avatar: state.avatar,
-          },
-        })
-      );
+    const scheduleReconnect = () => {
+      if (isDisposed || gaveUp || reconnectTimer) return;
+      const delay = RECONNECT_DELAYS_MS[Math.min(attempts, RECONNECT_DELAYS_MS.length - 1)];
+      attempts++;
+      reconnectTimer = setTimeout(() => {
+        reconnectTimer = null;
+        connect();
+      }, delay);
     };
 
-    ws.onmessage = (event) => {
+    const joinMessage = () => {
+      const state = store();
+      const climber = {
+        name: state.avatar.name || 'Runner',
+        position: livePhysics.ballPosition,
+        yaw: livePhysics.cameraYaw + Math.PI,
+        altitudeM: Math.round(livePhysics.currentAltitudeM),
+        peakAltitudeM: Math.round(livePhysics.peakAltitudeM),
+        avatar: state.avatar,
+      };
+      if (joined) {
+        // Rejoin after a drop. The host may recreate its (now empty, deleted) room.
+        return joined.code === 'PUBLIC'
+          ? { type: 'join-or-create', mode: 'public', climber }
+          : {
+              type: 'join-or-create',
+              mode: 'join',
+              lobbyCode: joined.code,
+              lobbyName: joined.name,
+              password: joined.password,
+              includeBots: joined.includeBots,
+              recreate: joined.created,
+              climber,
+            };
+      }
+      const mode = requested.mode === 'public' ? 'public' : requested.action || 'join';
+      return {
+        type: 'join-or-create',
+        mode,
+        lobbyCode: requested.lobbyCode,
+        lobbyName: requested.lobbyName,
+        password: requested.password,
+        includeBots: requested.includeBots,
+        climber,
+      };
+    };
+
+    function connect() {
       if (isDisposed) return;
+      const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+      let sock: WebSocket;
       try {
-        const msg = JSON.parse(String(event.data));
-        if (msg.type === 'lobby-joined') {
-          clientIdRef.current = msg.clientId;
+        sock = new WebSocket(`${protocol}//${window.location.host}/ws-summit`);
+      } catch {
+        startOfflineFallbackBots();
+        scheduleReconnect();
+        return;
+      }
+      ws = sock;
+
+      sock.onopen = () => {
+        if (isDisposed || ws !== sock) return;
+        sock.send(JSON.stringify(joinMessage()));
+      };
+
+      sock.onmessage = (event) => {
+        if (isDisposed || ws !== sock) return;
+        let msg: {
+          type?: string;
+          clientId?: string;
+          lobbyCode?: string;
+          lobbyName?: string;
+          mode?: 'public' | 'private';
+          includeBots?: boolean;
+          message?: string;
+          climbers?: RemoteClimberState[];
+        };
+        try {
+          msg = JSON.parse(String(event.data));
+        } catch {
+          return;
+        }
+        if (msg.type === 'lobby-joined' && msg.lobbyCode) {
+          attempts = 0;
+          clientId = msg.clientId ?? null;
+          const wasCreated = joined ? joined.created : requested.action === 'create';
+          joined = {
+            code: msg.lobbyCode,
+            name: msg.lobbyName || msg.lobbyCode,
+            created: msg.mode === 'private' && wasCreated,
+            password: joined ? joined.password : requested.password,
+            includeBots: Boolean(msg.includeBots),
+          };
+          stopFallbackBots();
+          // Updating the store no longer re-runs this effect (it is keyed on summitSession).
           setSummitLobbyState({
             isConnected: true,
             lobbyCode: msg.lobbyCode,
-            lobbyName: msg.lobbyName,
-            mode: msg.mode,
-            action: msg.mode === 'public' ? 'public' : 'join',
-            includeBots: msg.includeBots,
+            lobbyName: msg.lobbyName || msg.lobbyCode,
+            mode: msg.mode === 'private' ? 'private' : 'public',
+            action: msg.mode === 'private' ? (joined.created ? 'create' : 'join') : 'public',
+            includeBots: Boolean(msg.includeBots),
             errorMessage: null,
           });
         } else if (msg.type === 'lobby-error') {
-          setSummitLobbyState({
-            isConnected: false,
-            errorMessage: msg.message || 'Could not join lobby',
-          });
-          setScreen('summit-lobby');
+          if (!joined) {
+            // First join failed (typo / wrong password): back to the lobby screen to fix it.
+            setSummitLobbyState({ isConnected: false, errorMessage: msg.message || 'Could not join lobby' });
+            setScreen('summit-lobby');
+          } else {
+            // Rejoin after a drop failed (room closed meanwhile): keep playing offline.
+            gaveUp = true;
+            setSummitLobbyState({
+              isConnected: false,
+              errorMessage: msg.message || 'Lost the lobby',
+            });
+            try {
+              sock.close();
+            } catch {
+              // ignore
+            }
+            startOfflineFallbackBots();
+          }
         } else if (msg.type === 'room-state' && Array.isArray(msg.climbers)) {
-          const myId = clientIdRef.current;
-          const others = (msg.climbers as RemoteClimberState[]).filter((c) => c.id !== myId);
-          setRemoteClimbers(others);
+          setRemoteClimbers(msg.climbers.filter((c) => c && c.id !== clientId));
         }
-      } catch {
-        // ignore parse errors
-      }
-    };
+      };
 
-    ws.onerror = () => {
-      if (isDisposed) return;
-      setSummitLobbyState({ isConnected: false });
-      if (!fallbackInterval) {
+      sock.onclose = () => {
+        if (isDisposed || ws !== sock) return;
+        ws = null;
+        setSummitLobbyState({ isConnected: false });
         startOfflineFallbackBots();
+        scheduleReconnect();
+      };
+      // onerror is always followed by onclose; nothing to do here.
+      sock.onerror = () => {};
+    }
+
+    // Phones suspend sockets in the background: retry right away when the tab returns.
+    const onVisible = () => {
+      if (document.visibilityState !== 'visible' || isDisposed || gaveUp) return;
+      if (!ws || ws.readyState === WebSocket.CLOSED) {
+        if (reconnectTimer) clearTimeout(reconnectTimer);
+        reconnectTimer = null;
+        attempts = 0;
+        connect();
       }
     };
+    document.addEventListener('visibilitychange', onVisible);
+    window.addEventListener('online', onVisible);
 
-    ws.onclose = () => {
-      if (isDisposed) return;
-      setSummitLobbyState({ isConnected: false });
-      if (!fallbackInterval) {
-        startOfflineFallbackBots();
-      }
-    };
+    connect();
 
-    stateInterval = setInterval(() => {
+    const stateInterval = setInterval(() => {
       const curAlt = Math.round(livePhysics.currentAltitudeM);
       recordPeakAltitude(curAlt);
-
-      if (!ws || ws.readyState !== WebSocket.OPEN) return;
-      const state = useGameStore.getState();
-      const activeEmote =
-        livePhysics.localEmote && performance.now() - livePhysics.localEmoteTimestamp < 3200
-          ? livePhysics.localEmote
-          : null;
-
+      if (!ws || ws.readyState !== WebSocket.OPEN || !clientId) return;
+      const state = store();
       ws.send(
         JSON.stringify({
           type: 'state-update',
@@ -386,34 +426,33 @@ export function SummitMultiplayer() {
           altitudeM: curAlt,
           peakAltitudeM: Math.max(curAlt, state.summitBestAltitudeM),
           avatar: state.avatar,
-          emote: activeEmote,
+          emote: localEmote(),
         })
       );
     }, 50);
 
     return () => {
       isDisposed = true;
-      if (stateInterval) clearInterval(stateInterval);
-      if (fallbackInterval) clearInterval(fallbackInterval);
+      clearInterval(stateInterval);
+      stopFallbackBots();
+      if (reconnectTimer) clearTimeout(reconnectTimer);
+      document.removeEventListener('visibilitychange', onVisible);
+      window.removeEventListener('online', onVisible);
       if (ws) {
+        const sock = ws;
+        ws = null;
+        sock.onopen = sock.onmessage = sock.onclose = sock.onerror = null;
         try {
-          ws.close();
+          if (sock.readyState === WebSocket.OPEN) sock.send(JSON.stringify({ type: 'leave' }));
+          sock.close();
         } catch {
           // ignore
         }
       }
+      setRemoteClimbers([]);
+      setSummitLobbyState({ isConnected: false });
     };
-  }, [
-    currentLevelId,
-    summitLobby.mode,
-    summitLobby.lobbyCode,
-    summitLobby.password,
-    summitLobby.includeBots,
-    setRemoteClimbers,
-    setSummitLobbyState,
-    setScreen,
-    recordPeakAltitude,
-  ]);
+  }, [currentLevelId, summitSession]);
 
   if (currentLevelId !== SUMMIT_LEVEL_ID) return null;
 

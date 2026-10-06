@@ -35,6 +35,20 @@ function VirtualJoystick() {
   // Never leave the board tilted if the component unmounts mid-drag.
   useEffect(() => reset, [reset]);
 
+  // Rotating the phone (or the browser bar resizing the viewport) mid-drag leaves the
+  // stick origin in the old layout, which reads as a stuck full tilt: drop the drag.
+  useEffect(() => {
+    const onResize = () => {
+      if (pointerId.current !== null) reset();
+    };
+    window.addEventListener('resize', onResize);
+    window.screen?.orientation?.addEventListener?.('change', onResize);
+    return () => {
+      window.removeEventListener('resize', onResize);
+      window.screen?.orientation?.removeEventListener?.('change', onResize);
+    };
+  }, [reset]);
+
   const update = (clientX: number, clientY: number) => {
     let dx = clientX - origin.current.x;
     let dy = clientY - origin.current.y;

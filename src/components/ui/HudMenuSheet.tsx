@@ -4,7 +4,8 @@ import { gyroSupported, isTouchDevice } from '../../input/touchInput';
 import { getLevelById, useGameStore } from '../../store/useGameStore';
 import { useUiStore } from '../../store/useUiStore';
 import type { LeaderboardEntry } from './HUD';
-import { EMOTES, Icon, MedalDisc } from './icons';
+import { Icon, MedalDisc } from './icons';
+import { EMOTES, emoteWirePayload } from './emotes';
 
 const IS_TOUCH = isTouchDevice();
 
@@ -140,12 +141,11 @@ export function HudMenuSheet({ leaderboard }: { leaderboard: LeaderboardEntry[] 
                 <div className="sheet-emotes">
                   {EMOTES.map((em) => (
                     <button
-                      key={em.key}
-                      onClick={() => triggerEmote(em.payload)}
-                      style={{ ['--emote' as string]: em.color }}
+                      key={em.id}
+                      onClick={() => triggerEmote(emoteWirePayload(em))}
                       aria-label={`${em.label} emote`}
                     >
-                      <Icon name={em.icon} size={22} />
+                      <img src={em.art} alt="" draggable={false} />
                       {!IS_TOUCH && <kbd>{em.key}</kbd>}
                     </button>
                   ))}

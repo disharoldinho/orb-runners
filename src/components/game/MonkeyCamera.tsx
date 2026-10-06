@@ -4,6 +4,9 @@ import { useRapier } from '@react-three/rapier';
 import * as THREE from 'three';
 import { livePhysics, useGameStore } from '../../store/useGameStore';
 
+const WORLD_UP = new THREE.Vector3(0, 1, 0);
+const FALLOUT_LIFT = new THREE.Vector3(0, 1.8, 0);
+
 // Chase-camera framing. Pulled back ~27% and raised slightly (was 7.1m @ 0.38rad) so more of
 // the track ahead is visible; the wall probe below keeps it from clipping into geometry.
 const CAM_DIST = 9.0;
@@ -62,6 +65,15 @@ export function MonkeyCamera() {
   const yawVelocity = useRef({ value: 0 });
 
   const falloutFrozenPos = useRef(new THREE.Vector3(0, 5, 6));
+  // Per-frame scratch vectors (the camera runs every frame: no allocations).
+  const tmp = useRef({
+    look: new THREE.Vector3(),
+    pivot: new THREE.Vector3(),
+    goalCam: new THREE.Vector3(),
+    camPos: new THREE.Vector3(),
+    up: new THREE.Vector3(),
+    lookTarget: new THREE.Vector3(),
+  }).current;
   const countdownTimer = useRef(0);
   const goalOrbitAngle = useRef(0);
 
@@ -117,10 +129,10 @@ export function MonkeyCamera() {
     }
 
     if (playPhase === 'fallout') {
-      const targetLook = new THREE.Vector3(bx, by, bz);
+      const targetLook = tmp.look.set(bx, by, bz);
       smoothedLookAt.current.lerp(targetLook, 1 - Math.exp(-6 * dt));
       smoothedCamPos.current.lerp(falloutFrozenPos.current, 1 - Math.exp(-2.5 * dt));
-      smoothedUp.current.lerp(new THREE.Vector3(0, 1, 0), 1 - Math.exp(-5 * dt));
+      smoothedUp.current.lerp(WORLD_UP, 1 - Math.exp(-5 * dt));
 
       camera.position.copy(smoothedCamPos.current);
       camera.up.copy(smoothedUp.current);
@@ -131,10 +143,10 @@ export function MonkeyCamera() {
     if (playPhase === 'goal') {
       goalOrbitAngle.current += dt * 1.1;
       const orbitDist = 5.6;
-      const targetPivot = new THREE.Vector3(bx, by + 0.25, bz);
+      const targetPivot = tmp.pivot.set(bx, by + 0.25, bz);
       smoothedPivot.current.lerp(targetPivot, 1 - Math.exp(-6 * dt));
 
-      const desiredGoalCam = new THREE.Vector3(
+      const desiredGoalCam = tmp.goalCam.set(
         smoothedPivot.current.x + Math.sin(goalOrbitAngle.current) * orbitDist,
         smoothedPivot.current.y + 2.1,
         smoothedPivot.current.z + Math.cos(goalOrbitAngle.current) * orbitDist
@@ -142,7 +154,7 @@ export function MonkeyCamera() {
 
       smoothedCamPos.current.lerp(desiredGoalCam, 1 - Math.exp(-5 * dt));
       smoothedLookAt.current.lerp(smoothedPivot.current, 1 - Math.exp(-8 * dt));
-      smoothedUp.current.lerp(new THREE.Vector3(0, 1, 0), 1 - Math.exp(-6 * dt));
+      smoothedUp.current.lerp(WORLD_UP, 1 - Math.exp(-6 * dt));
 
       camera.position.copy(smoothedCamPos.current);
       camera.up.copy(smoothedUp.current);
@@ -191,7 +203,7 @@ export function MonkeyCamera() {
       visualLerp
     );
 
-    const targetPivot = new THREE.Vector3(bx, by + 0.38, bz);
+    const targetPivot = tmp.pivot.set(bx, by + 0.38, bz);
     smoothedPivot.current.lerp(targetPivot, 1 - Math.exp(-10.5 * dt));
 
     const yaw = livePhysics.cameraYaw;
@@ -271,7 +283,7 @@ export function MonkeyCamera() {
     );
     const k = wallDistFactor.current;
 
-    const desiredCamPos = new THREE.Vector3(
+    const desiredCamPos = tmp.camPos.set(
       smoothedPivot.current.x + worldOffsetX * k,
       smoothedPivot.current.y + localOffsetY * k,
       smoothedPivot.current.z + worldOffsetZ * k
@@ -280,12 +292,12 @@ export function MonkeyCamera() {
     smoothedCamPos.current.lerp(desiredCamPos, 1 - Math.exp(-12 * dt));
     camera.position.copy(smoothedCamPos.current);
 
-    falloutFrozenPos.current.copy(smoothedCamPos.current).add(new THREE.Vector3(0, 1.8, 0));
+    falloutFrozenPos.current.copy(smoothedCamPos.current).add(FALLOUT_LIFT);
 
     const rollAngle = roll * 0.36;
     const localUpX = -Math.sin(rollAngle);
     const localUpY = Math.cos(rollAngle);
-    const desiredUp = new THREE.Vector3(
+    const desiredUp = tmp.up.set(
       localUpX * cosYaw,
       localUpY,
       -localUpX * sinYaw
@@ -295,7 +307,7 @@ export function MonkeyCamera() {
     camera.up.copy(smoothedUp.current);
 
     const lookAheadDist = CAM_LOOK_AHEAD;
-    const desiredLookTarget = new THREE.Vector3(
+    const desiredLookTarget = tmp.lookTarget.set(
       smoothedPivot.current.x - Math.sin(effectiveYaw) * lookAheadDist,
       smoothedPivot.current.y + 0.12 - Math.sin(pitch) * 0.32,
       smoothedPivot.current.z - Math.cos(effectiveYaw) * lookAheadDist

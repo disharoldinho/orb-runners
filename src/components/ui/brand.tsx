@@ -1,47 +1,32 @@
-/** Brand pieces for the "Sticker Rally" UI: logo mark, wordmark and the Summit poster art. */
+/** Brand pieces for the "Sticker Rally" UI: wordmark, Summit poster art and phase strip. */
+import { WORDMARK_URL, summitPhaseArt } from '../../art';
+import { SUMMIT_PHASES } from '../../levels/summitMap';
 
-export function OrbMark({ size = 44 }: { size?: number }) {
-  return (
-    <svg viewBox="0 0 48 48" width={size} height={size} aria-hidden className="orb-mark">
-      <circle cx="24" cy="25" r="19" fill="var(--sky)" stroke="var(--ink)" strokeWidth="3.4" />
-      <path
-        d="M9 30c6 5 24 6 30-3"
-        fill="none"
-        stroke="var(--ink)"
-        strokeWidth="3"
-        strokeLinecap="round"
-      />
-      <path
-        d="M14 15.5c2.4-3 5.6-4.6 9-5"
-        fill="none"
-        stroke="#fff"
-        strokeWidth="3.4"
-        strokeLinecap="round"
-      />
-      <circle cx="19.5" cy="24" r="2.4" fill="var(--ink)" />
-      <circle cx="29" cy="23" r="2.4" fill="var(--ink)" />
-      <path
-        d="M40 8l1.4 3 3 .5-2.2 2.1.5 3-2.7-1.4-2.7 1.4.5-3-2.2-2.1 3-.5z"
-        fill="var(--sun)"
-        stroke="var(--ink)"
-        strokeWidth="1.6"
-        strokeLinejoin="round"
-      />
-    </svg>
-  );
-}
-
+/** Designer wordmark (orb mascot + "ORB RUNNERS", text converted to shapes). */
 export function Wordmark() {
   return (
-    <div className="wordmark" aria-label="Orb Runners">
-      <OrbMark size={52} />
-      <h1>
-        <span className="wm-orb">ORB</span>
-        <span className="wm-runners">RUNNERS</span>
-      </h1>
-    </div>
+    <h1 className="wordmark">
+      <img src={WORDMARK_URL} alt="Orb Runners" width={804} height={170} draggable={false} />
+    </h1>
   );
 }
+
+/** The nine Summit phases as a strip of tiny illustrated tickets (numbered, in climb order). */
+export function SummitPhaseStrip({ compact = false }: { compact?: boolean }) {
+  return (
+    <ol className={`phase-strip ${compact ? 'is-compact' : ''}`} aria-label="Summit stages">
+      {SUMMIT_PHASES.map((p) => (
+        <li key={p.id} title={`Stage ${p.id}: ${shortPhaseName(p.name)}`}>
+          <img src={summitPhaseArt(p.id)} alt="" loading="lazy" decoding="async" draggable={false} />
+          <span>{p.id}</span>
+        </li>
+      ))}
+    </ol>
+  );
+}
+
+/** Summit phase names carry a 'STAGE N · ' prefix; strip it for labels. */
+export const shortPhaseName = (name: string) => name.replace(/^\s*stage\s*\d+\s*[·•:\-–]\s*/i, '');
 
 /** Flat layered mountain with a dashed spiral road and the golden crown on top. */
 export function SummitPoster() {
