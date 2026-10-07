@@ -7,6 +7,9 @@ interface UiState {
   menuOpen: boolean;
   gyroOn: boolean;
   toast: string | null;
+  /** The game canvas lost its WebGL context (GPU reset / memory pressure) and not restored yet. */
+  webglContextLost: boolean;
+  setWebglContextLost: (lost: boolean) => void;
   setMenuOpen: (open: boolean) => void;
   toggleMenu: () => void;
   showToast: (msg: string) => void;
@@ -21,6 +24,8 @@ export const useUiStore = create<UiState>((set, get) => ({
   menuOpen: false,
   gyroOn: false,
   toast: null,
+  webglContextLost: false,
+  setWebglContextLost: (webglContextLost) => set({ webglContextLost }),
   setMenuOpen: (menuOpen) => set({ menuOpen }),
   toggleMenu: () => set({ menuOpen: !get().menuOpen }),
   showToast: (toast) => {

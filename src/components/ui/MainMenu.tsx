@@ -11,6 +11,7 @@ import { OrbShell } from '../game/PlayerOrb';
 import { SummitPoster, Wordmark } from './brand';
 import { formatTimeMs } from './HUD';
 import { Icon, MedalDisc } from './icons';
+import { PreviewCanvasGuard } from './GameFallback';
 
 /** Settings start unfolded on roomy screens, folded on phones. */
 const WIDE_SCREEN =
@@ -80,21 +81,23 @@ export function MainMenu() {
           {/* Runner */}
           <section className="card runner-card">
             <div className="runner-porthole">
-              <Canvas camera={{ position: [0, 0.35, 2.05], fov: 44 }} dpr={[1, 1.75]}>
-                <Environment resolution={128}>
-                  <Lightformer form="circle" intensity={3.5} position={[0, 4, 3]} scale={4} />
-                  <Lightformer
-                    form="ring"
-                    color="#3fa9ff"
-                    intensity={2.2}
-                    position={[-4, 2, 2]}
-                    scale={4}
-                  />
-                </Environment>
-                <ambientLight intensity={0.9} />
-                <directionalLight position={[3, 5, 4]} intensity={1.4} />
-                <HeroOrbPreview />
-              </Canvas>
+              <PreviewCanvasGuard>
+                <Canvas camera={{ position: [0, 0.35, 2.05], fov: 44 }} dpr={[1, 1.75]}>
+                  <Environment resolution={128}>
+                    <Lightformer form="circle" intensity={3.5} position={[0, 4, 3]} scale={4} />
+                    <Lightformer
+                      form="ring"
+                      color="#3fa9ff"
+                      intensity={2.2}
+                      position={[-4, 2, 2]}
+                      scale={4}
+                    />
+                  </Environment>
+                  <ambientLight intensity={0.9} />
+                  <directionalLight position={[3, 5, 4]} intensity={1.4} />
+                  <HeroOrbPreview />
+                </Canvas>
+              </PreviewCanvasGuard>
             </div>
             <div className="runner-info">
               <small>Your runner</small>

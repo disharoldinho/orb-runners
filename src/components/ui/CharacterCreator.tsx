@@ -16,6 +16,7 @@ import { CharacterModel } from '../game/CharacterModel';
 import { OrbShell } from '../game/PlayerOrb';
 import { CosmeticGlyph } from './cosmeticGlyphs';
 import { Icon, MedalDisc } from './icons';
+import { PreviewCanvasGuard } from './GameFallback';
 
 function TurntableStage({ avatar }: { avatar: AvatarConfig }) {
   const groupRef = useRef<THREE.Group>(null);
@@ -154,12 +155,14 @@ export function CharacterCreator() {
       <div className="creator-layout">
         <div className="card creator-stage">
           <div className="creator-canvas">
-            <Canvas shadows camera={{ position: [0, 0.55, 2.45], fov: 45 }} dpr={[1, 1.75]}>
-              <ambientLight intensity={0.95} />
-              <directionalLight position={[4, 6, 5]} intensity={1.4} castShadow />
-              <pointLight position={[-3, 2, -2]} intensity={0.6} color="#3fa9ff" />
-              <TurntableStage avatar={avatar} />
-            </Canvas>
+            <PreviewCanvasGuard>
+              <Canvas shadows camera={{ position: [0, 0.55, 2.45], fov: 45 }} dpr={[1, 1.75]}>
+                <ambientLight intensity={0.95} />
+                <directionalLight position={[4, 6, 5]} intensity={1.4} castShadow />
+                <pointLight position={[-3, 2, -2]} intensity={0.6} color="#3fa9ff" />
+                <TurntableStage avatar={avatar} />
+              </Canvas>
+            </PreviewCanvasGuard>
           </div>
           <div className="creator-name-row">
             <label className="field">

@@ -1,6 +1,7 @@
 import { GameCanvas } from './components/game/GameCanvas';
 import { GamepadManager } from './components/game/GamepadManager';
 import { CharacterCreator } from './components/ui/CharacterCreator';
+import { GameErrorBoundary } from './components/ui/GameFallback';
 import { HUD } from './components/ui/HUD';
 import { MainMenu } from './components/ui/MainMenu';
 import { MobileControls } from './components/ui/MobileControls';
@@ -12,6 +13,7 @@ const IS_TOUCH = isTouchDevice();
 
 export function App() {
   const screen = useGameStore((s) => s.screen);
+  const exitToMenu = useGameStore((s) => s.exitToMenu);
 
   return (
     <div className={`app-root ${IS_TOUCH ? 'is-touch' : ''} ${screen === 'playing' ? 'is-playing' : ''}`}>
@@ -20,11 +22,11 @@ export function App() {
       {screen === 'character-creator' && <CharacterCreator />}
       {screen === 'summit-lobby' && <SummitLobbyModal />}
       {screen === 'playing' && (
-        <>
+        <GameErrorBoundary onExit={exitToMenu}>
           <GameCanvas />
           <HUD />
           {IS_TOUCH && <MobileControls />}
-        </>
+        </GameErrorBoundary>
       )}
     </div>
   );

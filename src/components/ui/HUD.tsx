@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { memo, useEffect, useRef, useState } from 'react';
 import { MAPS } from '../../levels/maps';
 import { SUMMIT_PHASES, getSummitStageByCamps } from '../../levels/summitMap';
 import { getLevelById, livePhysics, useGameStore } from '../../store/useGameStore';
@@ -35,6 +35,31 @@ export type LeaderboardEntry = {
 /** Summit phase names carry a 'STAGE N · ' prefix; the tag already shows the number. */
 const shortStageName = (name: string) => name.replace(/^\s*stage\s*\d+\s*[·•:\-–]\s*/i, '');
 
+/**
+ * Live run timer text. It subscribes to the store outside React and writes the DOM directly,
+ * so the high-frequency elapsedMs updates (every frame or physics step) don't re-render the
+ * whole HUD.
+ */
+const RunTimerText = memo(function RunTimerText({ className }: { className?: string }) {
+  const ref = useRef<HTMLSpanElement>(null);
+  useEffect(() => {
+    const write = (ms: number) => {
+      const el = ref.current;
+      const text = formatTimeMs(ms);
+      if (el && el.textContent !== text) el.textContent = text;
+    };
+    write(useGameStore.getState().elapsedMs);
+    return useGameStore.subscribe((state, prev) => {
+      if (state.elapsedMs !== prev.elapsedMs) write(state.elapsedMs);
+    });
+  }, []);
+  return (
+    <span ref={ref} className={className}>
+      {formatTimeMs(useGameStore.getState().elapsedMs)}
+    </span>
+  );
+});
+
 const MEDAL_LABEL: Record<string, string> = {
   author: 'Author medal',
   gold: 'Gold medal',
@@ -47,7 +72,6 @@ export function HUD() {
   const currentLevelId = useGameStore((s) => s.currentLevelId);
   const playPhase = useGameStore((s) => s.playPhase);
   const runAttemptId = useGameStore((s) => s.runAttemptId);
-  const elapsedMs = useGameStore((s) => s.elapsedMs);
   const bonusTimeSavedMs = useGameStore((s) => s.bonusTimeSavedMs);
   const crossedCheckpoints = useGameStore((s) => s.crossedCheckpoints);
   const activeSplitBanner = useGameStore((s) => s.activeSplitBanner);
@@ -290,7 +314,9 @@ export function HUD() {
       {/* ---------- Top-centre: the one essential plate ---------- */}
       <div className="hud-center">
         <div className="hud-timer" data-testid="hud-timer">
-          <div className="hud-timer-digits">{formatTimeMs(elapsedMs)}</div>
+          <div className="hud-timer-digits">
+            <RunTimerText />
+          </div>
           <div className="hud-timer-sub">
             <span className="hud-speed compact-only">
               <Icon name="bolt" size={12} />
@@ -521,7 +547,9 @@ export function HUD() {
               </div>
               <div className="results-time">
                 <small>Clear time</small>
-                <strong>{formatTimeMs(elapsedMs)}</strong>
+                <strong>
+                  <RunTimerText />
+                </strong>
                 {isNewRecord && <span className="results-stamp">New PB · ghost saved</span>}
               </div>
             </div>

@@ -1,5 +1,5 @@
-import { Suspense, useEffect, useMemo, useRef, useState } from 'react';
-import { Canvas, useFrame, useThree } from '@react-three/fiber';
+import { Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { Canvas, RootState, useFrame, useThree } from '@react-three/fiber';
 import { Environment, Lightformer, PerformanceMonitor, SoftShadows } from '@react-three/drei';
 import { Physics } from '@react-three/rapier';
 import * as THREE from 'three';
@@ -26,6 +26,8 @@ import { AtmosphereFog, RimLight, SunLight } from './SceneLighting';
 import { StageBuilder } from './StageBuilder';
 import { SummitMultiplayer } from './SummitMultiplayer';
 import { TiltController } from './TiltController';
+import { GameFallback } from '../ui/GameFallback';
+import { useUiStore } from '../../store/useUiStore';
 
 const SKY_THEMES: Record<
   SkyPreset,
@@ -220,6 +222,14 @@ function CameraFar({ far }: { far: number }) {
   return null;
 }
 
+function ContextLostOverlay({ onReload }: { onReload: () => void }) {
+  const lost = useUiStore((s) => s.webglContextLost);
+  const exitToMenu = useGameStore((s) => s.exitToMenu);
+  useEffect(() => () => useUiStore.getState().setWebglContextLost(false), []);
+  if (!lost) return null;
+  return <GameFallback kind="context-lost" onRetry={onReload} onExit={exitToMenu} />;
+}
+
 export function GameCanvas() {
   const currentLevelId = useGameStore((s) => s.currentLevelId);
   const runAttemptId = useGameStore((s) => s.runAttemptId);
@@ -249,6 +259,24 @@ export function GameCanvas() {
   const minDpr = Math.min(maxDpr, gfx.minDpr);
   const dpr = Math.round((minDpr + (maxDpr - minDpr) * perfFactor) * 100) / 100;
 
+  // WebGL context loss (GPU reset, memory pressure, driver crash). three.js already calls
+  // preventDefault so the browser may restore the context; until then show an overlay instead
+  // of a frozen/black stage, with a way to rebuild the canvas from scratch. The flag lives in
+  // the UI store and is read only by the overlay: re-rendering the scene while the context is
+  // lost makes postprocessing throw.
+  const [canvasKey, setCanvasKey] = useState(0);
+  const handleCreated = useCallback(({ gl }: RootState) => {
+    const { setWebglContextLost } = useUiStore.getState();
+    setWebglContextLost(false);
+    gl.domElement.addEventListener('webglcontextlost', () => setWebglContextLost(true));
+    gl.domElement.addEventListener('webglcontextrestored', () => setWebglContextLost(false));
+  }, []);
+  const reloadStage = useCallback(() => {
+    useUiStore.getState().setWebglContextLost(false);
+    setCanvasKey((k) => k + 1);
+    useGameStore.getState().startRun();
+  }, []);
+
   return (
     <div
       className="game-canvas-wrapper"
@@ -258,6 +286,8 @@ export function GameCanvas() {
       }}
     >
       <Canvas
+        key={canvasKey}
+        onCreated={handleCreated}
         shadows
         dpr={dpr}
         camera={{ fov: 52, near: 0.3, far: 1600, position: [0, 4, 8] }}
@@ -389,6 +419,7 @@ export function GameCanvas() {
 
         {gfx.postFX && <PostFX preset={gfx} />}
       </Canvas>
+      <ContextLostOverlay onReload={reloadStage} />
     </div>
   );
 }
