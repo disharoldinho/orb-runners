@@ -2,8 +2,9 @@ import { useEffect, useRef } from 'react';
 import { useFrame } from '@react-three/fiber';
 import { Billboard, Text } from '@react-three/drei';
 import * as THREE from 'three';
-import { currentRunGhostBuffer, getLevelById, livePhysics, useGameStore } from '../../store/useGameStore';
+import { currentRunGhostBuffer, livePhysics, useGameStore } from '../../store/useGameStore';
 import { CharacterModel } from './CharacterModel';
+import { GHOST_MATCH_MAX_DIST, matchGhostProgress } from './ghostProgress';
 import { ORB_RADIUS } from './PlayerOrb';
 
 export function GhostOrb() {
@@ -15,11 +16,15 @@ export function GhostOrb() {
   const ghostGroupRef = useRef<THREE.Group>(null);
   const outerRingRef = useRef<THREE.Group>(null);
   const lastSampleMs = useRef(0);
-
-  const level = getLevelById(currentLevelId);
+  /** Playback keyframe cursor, so each frame doesn't rescan the whole replay. */
+  const playbackIdx = useRef(0);
+  /** Last matched segment of the ghost's line, for the live PB delta. */
+  const progressIdx = useRef(0);
 
   useEffect(() => {
     lastSampleMs.current = 0;
+    playbackIdx.current = 0;
+    progressIdx.current = 0;
     currentRunGhostBuffer.frames = [];
     livePhysics.ghostDeltaMs = null;
   }, [runAttemptId, currentLevelId]);
@@ -63,12 +68,14 @@ export function GhostOrb() {
     ghostGroupRef.current.visible =
       state.playPhase === 'playing' || state.playPhase === 'countdown';
 
-    // Find bounding keyframes for the current time
-    let idx = 0;
+    // Find bounding keyframes for the current time (time only moves forward within a run)
+    let idx = Math.min(playbackIdx.current, frames.length - 2);
+    if (frames[idx][0] > elapsed) idx = 0;
     while (idx < frames.length - 2 && frames[idx + 1][0] < elapsed) {
       idx++;
     }
 
+    playbackIdx.current = idx;
     const f0 = frames[idx];
     const f1 = frames[idx + 1];
     const span = Math.max(1, f1[0] - f0[0]);
@@ -87,24 +94,19 @@ export function GhostOrb() {
       outerRingRef.current.rotation.z += delta * 1.4;
     }
 
-    // 3. Compute live split delta vs Ghost based on distance to Goal Gate
+    // 3. Live delta vs PB: when did the ghost pass the point of its line nearest to the player?
+    // (Matching by distance-to-goal broke on any winding stage: hairpins, loops and the Summit
+    // spiral put far-apart parts of the course at the same distance from the goal.)
     if (state.playPhase === 'playing' && elapsed > 600) {
-      const [goalX, , goalZ] = level.goalPosition;
-      const playerDist = Math.hypot(bx - goalX, bz - goalZ);
-
-      // Find the frame where the ghost was at a similar distance to the goal
-      let closestTime = f0[0];
-      let minDiff = Infinity;
-      for (let i = 0; i < frames.length; i++) {
-        const d = Math.hypot(frames[i][1] - goalX, frames[i][3] - goalZ);
-        const diff = Math.abs(d - playerDist);
-        if (diff < minDiff) {
-          minDiff = diff;
-          closestTime = frames[i][0];
-        }
+      const match = matchGhostProgress(frames, bx, by, bz, progressIdx.current);
+      if (match && match.distance <= GHOST_MATCH_MAX_DIST) {
+        progressIdx.current = match.index;
+        // Negative = player reached this point faster than PB ghost!
+        livePhysics.ghostDeltaMs = elapsed - match.timeMs;
+      } else {
+        // Off the ghost's line (different route): no comparison beats a wrong one.
+        livePhysics.ghostDeltaMs = null;
       }
-      // Negative = player reached this point faster than PB ghost!
-      livePhysics.ghostDeltaMs = elapsed - closestTime;
     }
   });
 
