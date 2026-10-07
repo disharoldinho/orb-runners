@@ -3,6 +3,14 @@ import { useGameStore } from '../../store/useGameStore';
 import { SummitPoster } from './brand';
 import { Icon } from './icons';
 
+/** Same cleanup as the code actually sent on create (the server applies it too). */
+function sanitizeLobbyCode(raw: string): string {
+  return raw
+    .trim()
+    .toUpperCase()
+    .replace(/[^A-Z0-9-]/g, '');
+}
+
 function generateRandomCode(): string {
   const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
   let out = '';
@@ -71,10 +79,7 @@ export function SummitLobbyModal() {
 
   const handleCreatePrivate = () => {
     saveNameIfChanged();
-    const cleanCode = createCode
-      .trim()
-      .toUpperCase()
-      .replace(/[^A-Z0-9-]/g, '');
+    const cleanCode = sanitizeLobbyCode(createCode);
     if (cleanCode.length < 3) {
       setLocalError('Please enter a Lobby Code of at least 3 characters.');
       return;
@@ -109,7 +114,7 @@ export function SummitLobbyModal() {
   };
 
   const handleCopyInvite = () => {
-    const inviteText = `Join my Orb Runners "Reach the Summit" Private Lobby!\nURL: ${window.location.origin}\nLobby Code: ${createCode}\nPassword: ${createPassword || '(None)'}`;
+    const inviteText = `Join my Orb Runners "Reach the Summit" Private Lobby!\nURL: ${window.location.origin}\nLobby Code: ${sanitizeLobbyCode(createCode)}\nPassword: ${createPassword || '(None)'}`;
     navigator.clipboard?.writeText(inviteText).catch(() => {});
     setCopiedInvite(true);
     setTimeout(() => setCopiedInvite(false), 2200);

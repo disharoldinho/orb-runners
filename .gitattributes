@@ -1,0 +1,25 @@
+# Normalise line endings: text files are stored and checked out with LF on every OS,
+# so Windows checkouts (core.autocrlf) no longer show every file as modified.
+* text=auto eol=lf
+
+# Binary assets: never touch line endings or try to diff/merge them as text.
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.gif binary
+*.webp binary
+*.avif binary
+*.ico binary
+*.woff binary
+*.woff2 binary
+*.ttf binary
+*.otf binary
+*.eot binary
+*.wasm binary
+*.glb binary
+*.mp3 binary
+*.ogg binary
+*.wav binary
+*.zip binary
+*.gz binary
+*.tgz binary

@@ -141,8 +141,8 @@ export interface BoostPadDef {
 export interface JumpPadDef {
   id: string;
   position: Vec3;
-  radius?: number; // default 1.15
-  upwardImpulse?: number; // default 18.5
+  radius?: number; // default 1.25
+  upwardImpulse?: number; // default 14.5 (ignored when targetPosition is set)
   impulseY?: number; // alias for upwardImpulse
   forwardImpulse?: number; // default 0
   direction?: Vec3; // default [0, 0, -1]

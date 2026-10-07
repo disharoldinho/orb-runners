@@ -1,7 +1,13 @@
 import { useRef } from 'react';
 import { useFrame } from '@react-three/fiber';
 import { Text } from '@react-three/drei';
-import { BallCollider, CuboidCollider, RapierRigidBody, RigidBody } from '@react-three/rapier';
+import {
+  BallCollider,
+  CuboidCollider,
+  RapierRigidBody,
+  RigidBody,
+  useBeforePhysicsStep,
+} from '@react-three/rapier';
 import confetti from 'canvas-confetti';
 import * as THREE from 'three';
 import { useGameStore } from '../../store/useGameStore';
@@ -28,23 +34,28 @@ export function GoalGate({
   const triggerGoal = useGameStore((s) => s.triggerGoal);
   const playPhase = useGameStore((s) => s.playPhase);
 
-  useFrame((state, delta) => {
+  useFrame((_, delta) => {
     if (starRef.current) {
       starRef.current.rotation.y += delta * 2.4;
     }
     if (portalRef.current) {
       portalRef.current.rotation.z += delta * 0.6;
     }
+  });
 
-    if (movingRange && gateBodyRef.current) {
-      const t = state.clock.elapsedTime * movingSpeed;
-      const offset = Math.sin(t);
-      gateBodyRef.current.setNextKinematicTranslation({
-        x: position[0] + movingRange[0] * offset,
-        y: position[1] + movingRange[1] * offset,
-        z: position[2] + movingRange[2] * offset,
-      });
-    }
+  // Moving gate: driven per physics step by physics time that restarts with every attempt
+  // (the <Physics> world is re-keyed per attempt), like MovingPlatform. The old canvas
+  // clock never reset, so each attempt met the goal at a different phase.
+  const gateTime = useRef(0);
+  useBeforePhysicsStep((world) => {
+    if (!movingRange || !gateBodyRef.current) return;
+    gateTime.current += world.timestep;
+    const offset = Math.sin(gateTime.current * movingSpeed);
+    gateBodyRef.current.setNextKinematicTranslation({
+      x: position[0] + movingRange[0] * offset,
+      y: position[1] + movingRange[1] * offset,
+      z: position[2] + movingRange[2] * offset,
+    });
   });
 
   const handleGoalEnter = () => {
