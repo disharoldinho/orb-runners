@@ -16,6 +16,9 @@ Welcome! This repository (**Orb Runners**) is co-developed by **Antigravity** an
 - `npm run server` — Starts the Summit Multiplayer WebSocket & static HTTP server on port `5174`.
 - `npm run build` — Runs `tsc -b && vite build`. **Always verify `npm run build` exits with code 0 before committing!**
 - `npm run maps:check` — Map visual lint over all campaign maps and the Summit (`scripts/checkMapVisuals.mjs`): z-fighting/coplanar faces, terrain crowding or clipping the road, props in the track or inside each other, clouds through the course, holes in island meshes. Run it after any level, block-visual or scenery change; it must print `OK`.
+- `npm run typecheck` / `npm run lint` — `tsc --noEmit` and ESLint (`eslint.config.js`: typescript-eslint + React hooks rules) over `src/` and `server/`. Lint must report 0 errors (warnings are allowed).
+- `npm run format` / `npm run format:check` — Prettier (`.prettierrc.json`). Not enforced in CI yet; format only the files you touch.
+- CI (`.github/workflows/ci.yml`) runs on every PR and push to `main`: `npm ci`, typecheck, lint, build, `maps:check`, `summit:verify`, and checks that `server/summitWaypoints.json` is up to date.
 
 ---
 
