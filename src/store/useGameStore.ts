@@ -152,7 +152,13 @@ interface GameStore {
   activeSpawnPosition: [number, number, number];
   activeSpawnYaw: number;
 
+  /** Displayed run time (ms): simulated play time minus gem bonuses. Medals and PBs use it. */
   elapsedMs: number;
+  /**
+   * Simulated play time of this attempt (ms). Unlike elapsedMs it never jumps back when a
+   * gem is collected, so the PB ghost is recorded and played back against it.
+   */
+  runClockMs: number;
   bonusTimeSavedMs: number;
   collectedGems: string[];
   activatedSwitches: Record<string, boolean>;
@@ -237,6 +243,7 @@ export const useGameStore = create<GameStore>((set, get) => ({
   activeSpawnYaw: 0,
 
   elapsedMs: 0,
+  runClockMs: 0,
   bonusTimeSavedMs: 0,
   collectedGems: [],
   activatedSwitches: {},
@@ -299,6 +306,7 @@ export const useGameStore = create<GameStore>((set, get) => ({
       activeSpawnPosition: [...map.spawnPosition],
       activeSpawnYaw: map.initialYaw ?? 0,
       elapsedMs: 0,
+      runClockMs: 0,
       bonusTimeSavedMs: 0,
       collectedGems: [],
       activatedSwitches: {},
@@ -333,6 +341,7 @@ export const useGameStore = create<GameStore>((set, get) => ({
       activeSpawnPosition: [...map.spawnPosition],
       activeSpawnYaw: map.initialYaw ?? 0,
       elapsedMs: 0,
+      runClockMs: 0,
       bonusTimeSavedMs: 0,
       collectedGems: [],
       activatedSwitches: {},
@@ -442,9 +451,9 @@ export const useGameStore = create<GameStore>((set, get) => ({
   setPlayPhase: (playPhase) => set({ playPhase }),
 
   tickTimer: (deltaMs) => {
-    const { playPhase, elapsedMs } = get();
+    const { playPhase, elapsedMs, runClockMs } = get();
     if (playPhase === 'playing') {
-      set({ elapsedMs: Math.max(0, elapsedMs + deltaMs) });
+      set({ elapsedMs: Math.max(0, elapsedMs + deltaMs), runClockMs: runClockMs + deltaMs });
     }
   },
 
@@ -530,10 +539,11 @@ export const useGameStore = create<GameStore>((set, get) => ({
     let updatedGhosts = ghosts;
     if (isNewRecord && currentRunGhostBuffer.frames.length > 2) {
       const [bx, by, bz] = livePhysics.ballPosition;
+      // Frames are stamped with the run clock (see GhostOrb), so the final one is too.
       const finalFrames: GhostFrame[] = [
         ...currentRunGhostBuffer.frames,
         [
-          finalTime,
+          Math.round(get().runClockMs),
           Number(bx.toFixed(2)),
           Number(by.toFixed(2)),
           Number(bz.toFixed(2)),
@@ -547,6 +557,7 @@ export const useGameStore = create<GameStore>((set, get) => ({
           avatar: { ...avatar },
           frames: finalFrames,
           checkpointSplitsMs: { ...currentRunSplitsMs },
+          clock: 'run',
         },
       };
       try {

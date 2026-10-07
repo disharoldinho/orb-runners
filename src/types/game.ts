@@ -15,6 +15,12 @@ export interface GhostReplayData {
   frames: GhostFrame[];
   /** Recorded sector checkpoint timestamps (ms) for Trackmania split comparisons */
   checkpointSplitsMs?: Record<string, number>;
+  /**
+   * Clock the frame timestamps use. 'run' = simulated play time without gem bonuses
+   * (monotonic, so gems no longer leave gaps). Ghosts saved before this field existed
+   * used the displayed run timer and are still played back against it.
+   */
+  clock?: 'run';
 }
 
 export interface CheckpointSplitBanner {
