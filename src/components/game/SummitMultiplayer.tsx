@@ -334,6 +334,10 @@ export function SummitMultiplayer() {
             action: msg.mode === 'public' ? 'public' : 'join',
             includeBots: msg.includeBots,
             errorMessage: null,
+            renamedFrom:
+              msg.renamed === true && typeof msg.requestedCode === 'string'
+                ? msg.requestedCode.slice(0, 10)
+                : null,
           });
         } else if (msg.type === 'lobby-error') {
           setSummitLobbyState({

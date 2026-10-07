@@ -661,6 +661,7 @@ export function createSummitServer({
         }
         const mode = msg.mode === 'create' || msg.mode === 'join' ? msg.mode : 'public';
         let targetRoom;
+        let renamedFrom = null;
 
         if (mode === 'public') {
           targetRoom = rooms.get('PUBLIC');
@@ -669,7 +670,8 @@ export function createSummitServer({
             lobbyError('The server is full right now. Try again in a few minutes.', 'server-full');
             return;
           }
-          let code = cleanCode(msg.lobbyCode);
+          const requestedCode = cleanCode(msg.lobbyCode);
+          let code = requestedCode;
           if (!code || code === 'PUBLIC' || rooms.has(code)) {
             do {
               code = generateLobbyCode();
@@ -682,6 +684,8 @@ export function createSummitServer({
             isPublic: false,
             includeBots: msg.includeBots !== false,
           });
+          // Tell the host its requested code was taken, so it shares the real one.
+          if (requestedCode && requestedCode !== code) renamedFrom = requestedCode;
         } else {
           const code = cleanCode(String(msg.lobbyCode ?? '').trim());
           let candidate = rooms.get(code);
@@ -752,6 +756,7 @@ export function createSummitServer({
           mode: targetRoom.isPublic ? 'public' : 'private',
           includeBots: targetRoom.includeBots,
           hasPassword: Boolean(targetRoom.password),
+          ...(renamedFrom ? { renamed: true, requestedCode: renamedFrom } : {}),
         });
       } else if (msg.type === 'leave') {
         leaveCurrent();

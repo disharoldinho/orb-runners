@@ -652,6 +652,7 @@ export const useGameStore = create<GameStore>((set, get) => ({
         ...state.summitLobby,
         ...lobbyConfig,
         errorMessage: null,
+        renamedFrom: null,
       },
       summitSession: state.summitSession + 1,
     }));

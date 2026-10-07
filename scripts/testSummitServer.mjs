@@ -126,14 +126,21 @@ await test('create private room, second client joins with password; wrong passwo
     await guest.close();
   }));
 
-await test('creating a taken code gets a fresh code instead of hijacking the room', () =>
+await test('creating a taken code gets a fresh code (and a rename flag) instead of hijacking the room', () =>
   withServer({}, async ({ url }) => {
     const a = client(url);
     const b = client(url);
     await Promise.all([a.open, b.open]);
-    await a.join({ mode: 'create', lobbyCode: 'SAME' });
-    const j = await b.join({ mode: 'create', lobbyCode: 'SAME' });
+    const first = await a.join({ mode: 'create', lobbyCode: 'SAME' });
+    assert.equal(first.lobbyCode, 'SAME');
+    assert.equal(first.renamed, undefined, 'no rename flag when the code was free');
+    const j = await b.join({ mode: 'create', lobbyCode: 'same' });
     assert.notEqual(j.lobbyCode, 'SAME');
+    // The host is told, so it shares the real code (HUD notice).
+    assert.equal(j.renamed, true);
+    assert.equal(j.requestedCode, 'SAME');
+    const random = await b.join({ mode: 'create', lobbyCode: '' });
+    assert.equal(random.renamed, undefined, 'no rename flag for a blank (random) code');
     await a.close();
     await b.close();
   }));
