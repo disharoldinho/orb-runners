@@ -1,4 +1,5 @@
 import http from 'node:http';
+import zlib from 'node:zlib';
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -217,9 +218,166 @@ const MIME_TYPES = {
   '.png': 'image/png',
   '.jpg': 'image/jpeg',
   '.ico': 'image/x-icon',
+  '.mjs': 'application/javascript; charset=utf-8',
+  '.map': 'application/json; charset=utf-8',
+  '.webmanifest': 'application/manifest+json; charset=utf-8',
+  '.txt': 'text/plain; charset=utf-8',
+  '.webp': 'image/webp',
+  '.gif': 'image/gif',
   '.wasm': 'application/wasm',
+  '.woff': 'font/woff',
   '.woff2': 'font/woff2',
+  '.mp3': 'audio/mpeg',
+  '.ogg': 'audio/ogg',
+  '.wav': 'audio/wav',
 };
+/** Worth gzipping (already-compressed formats like woff2/png/mp3 are not). */
+const COMPRESSIBLE_EXT = new Set([
+  '.html',
+  '.js',
+  '.mjs',
+  '.css',
+  '.json',
+  '.map',
+  '.svg',
+  '.webmanifest',
+  '.txt',
+  '.wasm',
+  '.ico',
+]);
+const GZIP_MIN_BYTES = 1024;
+
+/**
+ * Serves the built client from `distDir`:
+ *  - existing files with their MIME type; `/assets/*` (content-hashed by Vite) are cached
+ *    for a year as immutable, everything else (index.html, favicon, ...) is `no-cache`
+ *    (revalidated via ETag / 304);
+ *  - a missing path that looks like a file (has an extension, or is under /assets/) is a
+ *    real 404, so a stale index.html never gets a 200 HTML page for its old JS bundle;
+ *  - any other path is an SPA route and gets index.html;
+ *  - gzip for text formats when the client accepts it (compressed once per file version).
+ * Returns false when there is no build to serve.
+ */
+function createStaticHandler(distDir) {
+  const root = distDir ? path.resolve(distDir) : null;
+  /** filePath -> { key, promise<Buffer> } */
+  const gzipCache = new Map();
+
+  const gzipped = (filePath, stat) => {
+    const key = `${stat.size}-${stat.mtimeMs}`;
+    const hit = gzipCache.get(filePath);
+    if (hit && hit.key === key) return hit.promise;
+    const promise = fs.promises
+      .readFile(filePath)
+      .then(
+        (buf) =>
+          new Promise((resolve, reject) =>
+            zlib.gzip(buf, { level: 9 }, (err, out) => (err ? reject(err) : resolve(out))),
+          ),
+      );
+    gzipCache.set(filePath, { key, promise });
+    promise.catch(() => gzipCache.delete(filePath));
+    return promise;
+  };
+
+  const sendText = (res, status, text, extra = {}) => {
+    res.writeHead(status, {
+      'Content-Type': 'text/plain; charset=utf-8',
+      'Cache-Control': 'no-store',
+      ...extra,
+    });
+    res.end(text);
+  };
+
+  return function serveStatic(req, res, reqUrl) {
+    if (!root || !fs.existsSync(path.join(root, 'index.html'))) return false;
+    if (req.method !== 'GET' && req.method !== 'HEAD') {
+      sendText(res, 405, 'Method Not Allowed', { Allow: 'GET, HEAD' });
+      return true;
+    }
+    let decoded;
+    try {
+      decoded = decodeURIComponent(reqUrl);
+    } catch {
+      sendText(res, 400, 'Bad Request');
+      return true;
+    }
+    if (decoded.includes('\0')) {
+      sendText(res, 400, 'Bad Request');
+      return true;
+    }
+    const relative = decoded === '/' ? 'index.html' : `.${decoded}`;
+    let filePath = path.resolve(root, relative);
+    if (filePath !== root && !filePath.startsWith(root + path.sep)) {
+      sendText(res, 404, 'Not Found');
+      return true;
+    }
+    let stat;
+    try {
+      stat = fs.statSync(filePath);
+      if (stat.isDirectory()) {
+        filePath = path.join(filePath, 'index.html');
+        stat = fs.statSync(filePath);
+      }
+    } catch {
+      stat = null;
+    }
+    const isAssetPath = decoded.startsWith('/assets/') || path.extname(decoded) !== '';
+    if (!stat || !stat.isFile()) {
+      if (isAssetPath) {
+        sendText(res, 404, 'Not Found');
+        return true;
+      }
+      filePath = path.join(root, 'index.html'); // SPA route
+      stat = fs.statSync(filePath);
+    }
+
+    const ext = path.extname(filePath).toLowerCase();
+    // Judge by the resolved file, not the raw URL (`/assets/../index.html` is not immutable).
+    const isHashedAsset = path.relative(root, filePath).startsWith(`assets${path.sep}`);
+    const etag = `W/"${stat.size.toString(16)}-${Math.floor(stat.mtimeMs).toString(16)}"`;
+    const headers = {
+      'Content-Type': MIME_TYPES[ext] || 'application/octet-stream',
+      'Cache-Control': isHashedAsset ? 'public, max-age=31536000, immutable' : 'no-cache',
+      ETag: etag,
+      'Last-Modified': stat.mtime.toUTCString(),
+      'X-Content-Type-Options': 'nosniff',
+    };
+    const compressible = COMPRESSIBLE_EXT.has(ext) && stat.size >= GZIP_MIN_BYTES;
+    if (compressible) headers.Vary = 'Accept-Encoding';
+    if (req.headers['if-none-match'] === etag) {
+      res.writeHead(304, headers);
+      res.end();
+      return true;
+    }
+    const wantsGzip = compressible && /\bgzip\b/.test(String(req.headers['accept-encoding'] || ''));
+    if (wantsGzip) {
+      gzipped(filePath, stat).then(
+        (body) => {
+          res.writeHead(200, {
+            ...headers,
+            'Content-Encoding': 'gzip',
+            'Content-Length': body.length,
+          });
+          res.end(req.method === 'HEAD' ? undefined : body);
+        },
+        () => {
+          if (!res.headersSent) sendText(res, 500, 'Internal Server Error');
+        },
+      );
+      return true;
+    }
+    res.writeHead(200, { ...headers, 'Content-Length': stat.size });
+    if (req.method === 'HEAD') {
+      res.end();
+      return true;
+    }
+    const stream = fs.createReadStream(filePath);
+    stream.on('error', () => res.destroy());
+    stream.pipe(res);
+    return true;
+  };
+}
 
 const cleanPassword = (v) =>
   typeof v === 'string' || typeof v === 'number' ? String(v).trim().slice(0, 64) : '';
@@ -408,6 +566,8 @@ export function createSummitServer({
     }
   }
 
+  const serveStatic = createStaticHandler(distDir);
+
   const httpServer = http.createServer((req, res) => {
     const reqUrl = (req.url || '/').split('?')[0];
 
@@ -421,27 +581,13 @@ export function createSummitServer({
         playersOnline: r.clients.size,
         includeBots: r.includeBots,
       }));
-      res.writeHead(200, { 'Content-Type': 'application/json' });
+      res.writeHead(200, { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' });
       res.end(JSON.stringify({ status: 'online', rooms: summary }));
       return;
     }
 
-    // Serve built production frontend from dist/ if available
-    if (distDir && fs.existsSync(distDir)) {
-      const safePath = path
-        .normalize(reqUrl === '/' ? '/index.html' : reqUrl)
-        .replace(/^(\.\.[/\\])+/, '');
-      let filePath = path.join(distDir, safePath);
-      if (!fs.existsSync(filePath) || fs.statSync(filePath).isDirectory()) {
-        filePath = path.join(distDir, 'index.html');
-      }
-      if (fs.existsSync(filePath)) {
-        const ext = path.extname(filePath).toLowerCase();
-        res.writeHead(200, { 'Content-Type': MIME_TYPES[ext] || 'application/octet-stream' });
-        fs.createReadStream(filePath).pipe(res);
-        return;
-      }
-    }
+    // Built production frontend from dist/ (if there is one)
+    if (serveStatic(req, res, reqUrl)) return;
 
     res.writeHead(200, { 'Content-Type': 'text/plain; charset=utf-8' });
     res.end('Orb Runners Summit Multiplayer Server is running.');
