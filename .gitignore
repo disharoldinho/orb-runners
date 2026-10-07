@@ -3,7 +3,14 @@ node_modules/
 
 # Production build & TypeScript cache
 dist/
+dist-ssr/
 *.tsbuildinfo
+vite.config.*.timestamp-*
+.eslintcache
+coverage/
+
+# Scratch space for local experiments
+.tmp/
 
 # Logs & OS files
 *.log
@@ -15,5 +22,6 @@ Thumbs.db
 .env
 .env.*
 !.env.example
+*.local
 .vscode/
 .idea/
