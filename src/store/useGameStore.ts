@@ -547,7 +547,8 @@ export const useGameStore = create<GameStore>((set, get) => ({
           Number(bx.toFixed(2)),
           Number(by.toFixed(2)),
           Number(bz.toFixed(2)),
-          Number(livePhysics.cameraYaw.toFixed(2)),
+          // Same +PI facing offset GhostOrb records, or the ghost spins round at the finish.
+          Number((livePhysics.cameraYaw + Math.PI).toFixed(2)),
         ],
       ];
       updatedGhosts = {
