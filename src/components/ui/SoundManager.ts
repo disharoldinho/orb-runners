@@ -2,6 +2,47 @@ class SoundManager {
   private ctx: AudioContext | null = null;
   public muted: boolean = false;
 
+  constructor() {
+    this.installGestureUnlock();
+  }
+
+  /**
+   * iOS/Safari (and Chrome's autoplay policy) only let an AudioContext start inside a user
+   * gesture, but the first SFX (the countdown beep) fires from an effect/timer. Create and
+   * resume the context on the first tap/click/key instead, with a silent 1-sample buffer
+   * that fully unlocks output on older iOS. While muted, keep listening for a later gesture.
+   */
+  private installGestureUnlock() {
+    if (typeof window === 'undefined') return;
+    const events = ['pointerdown', 'touchend', 'keydown'] as const;
+    const remove = () => {
+      for (const type of events) window.removeEventListener(type, unlock, true);
+    };
+    const unlock = () => {
+      const ctx = this.getContext();
+      if (!ctx) return;
+      try {
+        const source = ctx.createBufferSource();
+        source.buffer = ctx.createBuffer(1, 1, 22050);
+        source.connect(ctx.destination);
+        source.start(0);
+      } catch {
+        // ignore: the resume below is what matters on modern browsers
+      }
+      if (ctx.state === 'running') {
+        remove();
+        return;
+      }
+      ctx
+        .resume()
+        .then(() => {
+          if (ctx.state === 'running') remove();
+        })
+        .catch(() => {});
+    };
+    for (const type of events) window.addEventListener(type, unlock, { capture: true, passive: true });
+  }
+
   private getContext(): AudioContext | null {
     if (this.muted || typeof window === 'undefined') return null;
     if (!this.ctx) {

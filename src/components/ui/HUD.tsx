@@ -47,7 +47,6 @@ export function HUD() {
   const currentLevelId = useGameStore((s) => s.currentLevelId);
   const playPhase = useGameStore((s) => s.playPhase);
   const runAttemptId = useGameStore((s) => s.runAttemptId);
-  const elapsedMs = useGameStore((s) => s.elapsedMs);
   const bonusTimeSavedMs = useGameStore((s) => s.bonusTimeSavedMs);
   const crossedCheckpoints = useGameStore((s) => s.crossedCheckpoints);
   const activeSplitBanner = useGameStore((s) => s.activeSplitBanner);
@@ -83,6 +82,7 @@ export function HUD() {
   const [showSplitPopup, setShowSplitPopup] = useState(false);
   const [hudLocalAltM, setHudLocalAltM] = useState(0);
 
+  const timerRef = useRef<HTMLDivElement>(null);
   const tiltDotRef = useRef<HTMLDivElement>(null);
   const speedRefs = useRef<(HTMLSpanElement | null)[]>([]);
   const ghostSplitRef = useRef<HTMLDivElement>(null);
@@ -173,10 +173,16 @@ export function HUD() {
     return () => window.clearTimeout(timer);
   }, [playPhase, crossedCheckpoints.length, respawnAtCheckpoint, startRun]);
 
-  // 60fps DOM updates (tilt radar, speed, ghost split, Summit altitude) without re-rendering
+  // 60fps DOM updates (run timer, tilt radar, speed, ghost split, Summit altitude) without
+  // re-rendering. The timer used to be a store subscription, which re-rendered this whole HUD
+  // on every elapsedMs update (every frame).
   useEffect(() => {
     let rafId = 0;
     const updateLoop = () => {
+      if (timerRef.current) {
+        const t = formatTimeMs(useGameStore.getState().elapsedMs);
+        if (timerRef.current.textContent !== t) timerRef.current.textContent = t;
+      }
       if (tiltDotRef.current) {
         const normX = (livePhysics.tiltRoll / MAX_TILT_RAD) * 26;
         const normY = (-livePhysics.tiltPitch / MAX_TILT_RAD) * 26;
@@ -290,7 +296,9 @@ export function HUD() {
       {/* ---------- Top-centre: the one essential plate ---------- */}
       <div className="hud-center">
         <div className="hud-timer" data-testid="hud-timer">
-          <div className="hud-timer-digits">{formatTimeMs(elapsedMs)}</div>
+          <div className="hud-timer-digits" ref={timerRef}>
+            {formatTimeMs(useGameStore.getState().elapsedMs)}
+          </div>
           <div className="hud-timer-sub">
             <span className="hud-speed compact-only">
               <Icon name="bolt" size={12} />
@@ -521,7 +529,8 @@ export function HUD() {
               </div>
               <div className="results-time">
                 <small>Clear time</small>
-                <strong>{formatTimeMs(elapsedMs)}</strong>
+                {/* Final time: the timer stops at the goal, and this renders on the phase change. */}
+                <strong>{formatTimeMs(useGameStore.getState().elapsedMs)}</strong>
                 {isNewRecord && <span className="results-stamp">New PB · ghost saved</span>}
               </div>
             </div>

@@ -2463,3 +2463,46 @@ kbd {
 .is-touch kbd {
   display: none !important;
 }
+
+/* ------------------------- game fallback (3D failed) ------------------------- */
+.game-fallback {
+  position: fixed;
+  inset: 0;
+  z-index: 100;
+  display: grid;
+  place-items: center;
+  padding: var(--s4);
+  background: rgba(29, 20, 51, 0.55);
+}
+.game-fallback-card {
+  max-width: 440px;
+  padding: 24px 22px;
+  text-align: center;
+  color: var(--ink);
+  font-family: var(--f-ui);
+}
+.game-fallback-card h2 {
+  margin: 0 0 var(--s2);
+  font-family: var(--f-display);
+  font-size: 1.6rem;
+}
+.game-fallback-card p {
+  margin: 0 0 var(--s3);
+  line-height: 1.45;
+}
+.game-fallback-detail {
+  display: block;
+  margin: 0 0 var(--s3);
+  padding: 6px 8px;
+  font-size: 0.8rem;
+  color: var(--ink-2);
+  background: var(--paper);
+  border-radius: var(--r-s);
+  overflow-wrap: anywhere;
+}
+.game-fallback-actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: var(--s2);
+}
