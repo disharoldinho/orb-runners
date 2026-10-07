@@ -1,4 +1,4 @@
-import { memo, useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { MAPS } from '../../levels/maps';
 import { SUMMIT_PHASES, getSummitStageByCamps } from '../../levels/summitMap';
 import { getLevelById, livePhysics, useGameStore } from '../../store/useGameStore';
@@ -34,31 +34,6 @@ export type LeaderboardEntry = {
 
 /** Summit phase names carry a 'STAGE N · ' prefix; the tag already shows the number. */
 const shortStageName = (name: string) => name.replace(/^\s*stage\s*\d+\s*[·•:\-–]\s*/i, '');
-
-/**
- * Live run timer text. It subscribes to the store outside React and writes the DOM directly,
- * so the high-frequency elapsedMs updates (every frame or physics step) don't re-render the
- * whole HUD.
- */
-const RunTimerText = memo(function RunTimerText({ className }: { className?: string }) {
-  const ref = useRef<HTMLSpanElement>(null);
-  useEffect(() => {
-    const write = (ms: number) => {
-      const el = ref.current;
-      const text = formatTimeMs(ms);
-      if (el && el.textContent !== text) el.textContent = text;
-    };
-    write(useGameStore.getState().elapsedMs);
-    return useGameStore.subscribe((state, prev) => {
-      if (state.elapsedMs !== prev.elapsedMs) write(state.elapsedMs);
-    });
-  }, []);
-  return (
-    <span ref={ref} className={className}>
-      {formatTimeMs(useGameStore.getState().elapsedMs)}
-    </span>
-  );
-});
 
 const MEDAL_LABEL: Record<string, string> = {
   author: 'Author medal',
@@ -107,6 +82,7 @@ export function HUD() {
   const [showSplitPopup, setShowSplitPopup] = useState(false);
   const [hudLocalAltM, setHudLocalAltM] = useState(0);
 
+  const timerRef = useRef<HTMLDivElement>(null);
   const tiltDotRef = useRef<HTMLDivElement>(null);
   const speedRefs = useRef<(HTMLSpanElement | null)[]>([]);
   const ghostSplitRef = useRef<HTMLDivElement>(null);
@@ -197,10 +173,16 @@ export function HUD() {
     return () => window.clearTimeout(timer);
   }, [playPhase, crossedCheckpoints.length, respawnAtCheckpoint, startRun]);
 
-  // 60fps DOM updates (tilt radar, speed, ghost split, Summit altitude) without re-rendering
+  // 60fps DOM updates (run timer, tilt radar, speed, ghost split, Summit altitude) without
+  // re-rendering. The timer used to be a store subscription, which re-rendered this whole HUD
+  // on every elapsedMs update (every frame).
   useEffect(() => {
     let rafId = 0;
     const updateLoop = () => {
+      if (timerRef.current) {
+        const t = formatTimeMs(useGameStore.getState().elapsedMs);
+        if (timerRef.current.textContent !== t) timerRef.current.textContent = t;
+      }
       if (tiltDotRef.current) {
         const normX = (livePhysics.tiltRoll / MAX_TILT_RAD) * 26;
         const normY = (-livePhysics.tiltPitch / MAX_TILT_RAD) * 26;
@@ -314,8 +296,8 @@ export function HUD() {
       {/* ---------- Top-centre: the one essential plate ---------- */}
       <div className="hud-center">
         <div className="hud-timer" data-testid="hud-timer">
-          <div className="hud-timer-digits">
-            <RunTimerText />
+          <div className="hud-timer-digits" ref={timerRef}>
+            {formatTimeMs(useGameStore.getState().elapsedMs)}
           </div>
           <div className="hud-timer-sub">
             <span className="hud-speed compact-only">
@@ -547,9 +529,8 @@ export function HUD() {
               </div>
               <div className="results-time">
                 <small>Clear time</small>
-                <strong>
-                  <RunTimerText />
-                </strong>
+                {/* Final time: the timer stops at the goal, and this renders on the phase change. */}
+                <strong>{formatTimeMs(useGameStore.getState().elapsedMs)}</strong>
                 {isNewRecord && <span className="results-stamp">New PB · ghost saved</span>}
               </div>
             </div>
