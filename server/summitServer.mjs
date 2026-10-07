@@ -246,6 +246,86 @@ function sampleBotStates(elapsedSec) {
   });
 }
 
+/**
+ * Client input validation.
+ *
+ * Every climber field a client sends is re-broadcast to everyone in the room 20 times a
+ * second, and the game renders it directly (`new Vector3(...position)`, `CharacterModel`
+ * destructures `avatar`). So one buggy or hostile client sending `position: {}`, a missing
+ * avatar or a megabyte-long emote used to crash or flood every other player's game.
+ * Everything is coerced into the shape the client expects before it is stored.
+ */
+const MAX_MESSAGE_BYTES = 16 * 1024; // real messages are < 1 KB
+const MAX_COORD = 5000; // the Summit spans roughly ±150 m; anything beyond is garbage
+const MAX_ALTITUDE_M = 10000;
+/** Skip a room-state frame for a socket whose send buffer is this backed up (slow link). */
+const MAX_BUFFERED_BYTES = 512 * 1024;
+
+const DEFAULT_AVATAR = {
+  name: 'Climber',
+  bodyType: 'bean',
+  eyeType: 'happy',
+  mouthType: 'grin',
+  hatType: 'none',
+  primaryColor: '#35A7FF',
+  secondaryColor: '#F8F9FA',
+  orbStyle: 'clear',
+};
+
+function finiteOr(value, fallback) {
+  return typeof value === 'number' && Number.isFinite(value) ? value : fallback;
+}
+
+function clamp(value, min, max) {
+  return Math.min(max, Math.max(min, value));
+}
+
+function sanitizeName(value, fallback) {
+  if (typeof value !== 'string') return fallback;
+  // Strip control characters; keep emoji and accents.
+  // eslint-disable-next-line no-control-regex
+  const name = value.replace(/[\u0000-\u001f\u007f]/g, '').trim();
+  return name ? Array.from(name).slice(0, 18).join('') : fallback;
+}
+
+function sanitizePosition(value, fallback) {
+  if (!Array.isArray(value) || value.length < 3) return fallback;
+  const pos = value.slice(0, 3).map((n) => (typeof n === 'number' && Number.isFinite(n) ? n : NaN));
+  if (pos.some(Number.isNaN)) return fallback;
+  return pos.map((n) => Number(clamp(n, -MAX_COORD, MAX_COORD).toFixed(2)));
+}
+
+function sanitizeAltitude(value, fallback) {
+  return Math.round(clamp(finiteOr(value, fallback), 0, MAX_ALTITUDE_M));
+}
+
+/** Emotes are a single emoji (possibly a multi-codepoint sequence) or nothing. */
+function sanitizeEmote(value) {
+  if (typeof value !== 'string' || !value || value.length > 16) return null;
+  return Array.from(value).length <= 8 ? value : null;
+}
+
+const AVATAR_ID_RE = /^[a-z][a-z0-9-]{0,23}$/;
+const AVATAR_COLOR_RE = /^#(?:[0-9a-f]{3}|[0-9a-f]{6})$/i;
+
+/** Always returns a complete avatar, so remote CharacterModels never get `undefined`. */
+function sanitizeAvatar(value, fallback = DEFAULT_AVATAR) {
+  const src = value && typeof value === 'object' && !Array.isArray(value) ? value : {};
+  const base = fallback || DEFAULT_AVATAR;
+  const pick = (key, re) =>
+    typeof src[key] === 'string' && re.test(src[key]) ? src[key] : base[key];
+  return {
+    name: sanitizeName(src.name, base.name),
+    bodyType: pick('bodyType', AVATAR_ID_RE),
+    eyeType: pick('eyeType', AVATAR_ID_RE),
+    mouthType: pick('mouthType', AVATAR_ID_RE),
+    hatType: pick('hatType', AVATAR_ID_RE),
+    primaryColor: pick('primaryColor', AVATAR_COLOR_RE),
+    secondaryColor: pick('secondaryColor', AVATAR_COLOR_RE),
+    orbStyle: pick('orbStyle', AVATAR_ID_RE),
+  };
+}
+
 const MIME_TYPES = {
   '.html': 'text/html; charset=utf-8',
   '.js': 'application/javascript; charset=utf-8',
@@ -296,7 +376,8 @@ const httpServer = http.createServer((req, res) => {
   res.end('Orb Runners Summit Multiplayer Server is running.');
 });
 
-const wss = new WebSocketServer({ server: httpServer });
+// ws defaults to a 100 MB payload limit; a single oversized frame now just closes that socket.
+const wss = new WebSocketServer({ server: httpServer, maxPayload: MAX_MESSAGE_BYTES });
 
 wss.on('connection', (ws) => {
   let currentRoomCode = null;
@@ -372,15 +453,15 @@ wss.on('connection', (ws) => {
 
         leavePrevious(targetRoom.code);
         currentRoomCode = targetRoom.code;
-        const initialClimber = msg.climber || {};
+        const initialClimber = msg.climber && typeof msg.climber === 'object' ? msg.climber : {};
         targetRoom.clients.set(ws, {
           id: clientId,
-          name: String(initialClimber.name || 'Climber').slice(0, 18),
-          position: initialClimber.position || [0, 1.0, 0],
-          yaw: initialClimber.yaw || 0,
-          altitudeM: initialClimber.altitudeM || 0,
-          peakAltitudeM: initialClimber.peakAltitudeM || 0,
-          avatar: initialClimber.avatar,
+          name: sanitizeName(initialClimber.name, 'Climber'),
+          position: sanitizePosition(initialClimber.position, [0, 1.0, 0]),
+          yaw: finiteOr(initialClimber.yaw, 0),
+          altitudeM: sanitizeAltitude(initialClimber.altitudeM, 0),
+          peakAltitudeM: sanitizeAltitude(initialClimber.peakAltitudeM, 0),
+          avatar: sanitizeAvatar(initialClimber.avatar),
           emote: null,
           isBot: false,
         });
@@ -404,14 +485,13 @@ wss.on('connection', (ws) => {
 
         room.clients.set(ws, {
           ...existing,
-          name: String(msg.name || existing.name).slice(0, 18),
-          position: Array.isArray(msg.position) ? msg.position : existing.position,
-          yaw: typeof msg.yaw === 'number' ? msg.yaw : existing.yaw,
-          altitudeM: typeof msg.altitudeM === 'number' ? msg.altitudeM : existing.altitudeM,
-          peakAltitudeM:
-            typeof msg.peakAltitudeM === 'number' ? msg.peakAltitudeM : existing.peakAltitudeM,
-          avatar: msg.avatar || existing.avatar,
-          emote: msg.emote || null,
+          name: sanitizeName(msg.name, existing.name),
+          position: sanitizePosition(msg.position, existing.position),
+          yaw: finiteOr(msg.yaw, existing.yaw),
+          altitudeM: sanitizeAltitude(msg.altitudeM, existing.altitudeM),
+          peakAltitudeM: sanitizeAltitude(msg.peakAltitudeM, existing.peakAltitudeM),
+          avatar: msg.avatar ? sanitizeAvatar(msg.avatar, existing.avatar) : existing.avatar,
+          emote: sanitizeEmote(msg.emote),
           isBot: false,
         });
       }
@@ -455,7 +535,9 @@ setInterval(() => {
     });
 
     for (const clientWs of room.clients.keys()) {
-      if (clientWs.readyState === 1) {
+      // Positions are superseded every 50 ms, so dropping a frame for a backed-up socket is
+      // harmless, while queueing them would grow server memory without bound.
+      if (clientWs.readyState === 1 && clientWs.bufferedAmount < MAX_BUFFERED_BYTES) {
         clientWs.send(payload);
       }
     }

@@ -74,6 +74,19 @@ const FALLBACK_BOTS: Omit<
   },
 ];
 
+/** Drop malformed climbers instead of letting one bad entry crash the whole scene. */
+function isRenderableClimber(c: RemoteClimberState | null | undefined): c is RemoteClimberState {
+  return (
+    !!c &&
+    typeof c.id === 'string' &&
+    Array.isArray(c.position) &&
+    c.position.length >= 3 &&
+    c.position.every((n) => typeof n === 'number' && Number.isFinite(n)) &&
+    !!c.avatar &&
+    typeof c.avatar === 'object'
+  );
+}
+
 function RemoteClimberMesh({ climber }: { climber: RemoteClimberState }) {
   const outerGroupRef = useRef<THREE.Group>(null);
   const shellMeshRef = useRef<THREE.Group>(null);
@@ -343,7 +356,9 @@ export function SummitMultiplayer() {
           setScreen('summit-lobby');
         } else if (msg.type === 'room-state' && Array.isArray(msg.climbers)) {
           const myId = clientIdRef.current;
-          const others = (msg.climbers as RemoteClimberState[]).filter((c) => c.id !== myId);
+          const others = (msg.climbers as RemoteClimberState[]).filter(
+            (c) => c.id !== myId && isRenderableClimber(c)
+          );
           setRemoteClimbers(others);
         }
       } catch {
