@@ -169,6 +169,20 @@ function createRoom({ code, name, password = '', isPublic = false, includeBots =
   return room;
 }
 
+/**
+ * Removes a socket from a room and deletes the room if that left a private room empty.
+ * `keepCode` protects the room the socket is about to (re)join, so re-joining your own
+ * room while alone in it doesn't delete it first.
+ */
+function leaveRoom(ws, code, keepCode = null) {
+  const room = code ? rooms.get(code) : null;
+  if (!room) return;
+  room.clients.delete(ws);
+  if (!room.isPublic && room.clients.size === 0 && code !== keepCode) {
+    rooms.delete(code);
+  }
+}
+
 // Initialize the default Public room
 createRoom({
   code: 'PUBLIC',
@@ -293,10 +307,13 @@ wss.on('connection', (ws) => {
       const msg = JSON.parse(String(raw));
 
       if (msg.type === 'join-or-create') {
-        // Leave previous room if any
-        if (currentRoomCode && rooms.has(currentRoomCode)) {
-          rooms.get(currentRoomCode).clients.delete(ws);
-        }
+        // Switching rooms: leave the previous one (deleting it if that leaves a private room
+        // empty) once the target is known, so an empty private room is never leaked.
+        const previousRoomCode = currentRoomCode;
+        const leavePrevious = (keepCode = null) => {
+          leaveRoom(ws, previousRoomCode, keepCode);
+          currentRoomCode = null;
+        };
 
         const mode = msg.mode || 'public';
         let targetRoom = null;
@@ -326,6 +343,7 @@ wss.on('connection', (ws) => {
             .trim();
           const candidate = rooms.get(code);
           if (!candidate) {
+            leavePrevious();
             ws.send(
               JSON.stringify({
                 type: 'lobby-error',
@@ -336,6 +354,7 @@ wss.on('connection', (ws) => {
           }
           const suppliedPass = String(msg.password || '').trim();
           if (candidate.password && candidate.password !== suppliedPass) {
+            leavePrevious();
             ws.send(
               JSON.stringify({
                 type: 'lobby-error',
@@ -351,6 +370,7 @@ wss.on('connection', (ws) => {
           targetRoom = rooms.get('PUBLIC');
         }
 
+        leavePrevious(targetRoom.code);
         currentRoomCode = targetRoom.code;
         const initialClimber = msg.climber || {};
         targetRoom.clients.set(ws, {
@@ -409,14 +429,9 @@ wss.on('connection', (ws) => {
   });
 
   ws.on('close', () => {
-    if (currentRoomCode && rooms.has(currentRoomCode)) {
-      const room = rooms.get(currentRoomCode);
-      room.clients.delete(ws);
-      // Clean up empty private rooms after everyone leaves
-      if (!room.isPublic && room.clients.size === 0) {
-        rooms.delete(currentRoomCode);
-      }
-    }
+    // Clean up empty private rooms after everyone leaves
+    leaveRoom(ws, currentRoomCode);
+    currentRoomCode = null;
   });
 });
 

@@ -175,6 +175,11 @@ interface GameStore {
 
   // Summit Multiplayer & Lobby State
   summitLobby: SummitLobbyState;
+  /**
+   * Bumped on every explicit "launch climb". The Summit socket (re)connects only when this
+   * or the level changes, never when the server reports back the room it actually joined.
+   */
+  summitSession: number;
   remoteClimbers: RemoteClimberState[];
   summitBestAltitudeM: number;
 
@@ -261,6 +266,7 @@ export const useGameStore = create<GameStore>((set, get) => ({
     isConnected: false,
     errorMessage: null,
   },
+  summitSession: 0,
   remoteClimbers: [],
   summitBestAltitudeM: loadSavedSummitPeak(),
 
@@ -636,6 +642,7 @@ export const useGameStore = create<GameStore>((set, get) => ({
         ...lobbyConfig,
         errorMessage: null,
       },
+      summitSession: state.summitSession + 1,
     }));
     get().selectLevel(SUMMIT_LEVEL_ID);
   },

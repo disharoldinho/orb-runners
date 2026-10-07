@@ -214,7 +214,7 @@ const FALLBACK_ROUTE_LENGTH = FALLBACK_ROUTE_DIST[FALLBACK_ROUTE_DIST.length - 1
 
 export function SummitMultiplayer() {
   const currentLevelId = useGameStore((s) => s.currentLevelId);
-  const summitLobby = useGameStore((s) => s.summitLobby);
+  const summitSession = useGameStore((s) => s.summitSession);
   const remoteClimbers = useGameStore((s) => s.remoteClimbers);
   const setRemoteClimbers = useGameStore((s) => s.setRemoteClimbers);
   const setSummitLobbyState = useGameStore((s) => s.setSummitLobbyState);
@@ -321,6 +321,11 @@ export function SummitMultiplayer() {
         const msg = JSON.parse(String(event.data));
         if (msg.type === 'lobby-joined') {
           clientIdRef.current = msg.clientId;
+          // The server may hand back a different room than requested (e.g. a renamed code
+          // when the requested private code was taken). Record it for the HUD/invite only:
+          // these fields are not effect dependencies, so this socket stays in that room.
+          // (Reconnecting here used to close the socket, which deleted the new empty room,
+          // and the rejoin then failed with "Lobby not found".)
           setSummitLobbyState({
             isConnected: true,
             lobbyCode: msg.lobbyCode,
@@ -403,12 +408,11 @@ export function SummitMultiplayer() {
         }
       }
     };
+    // Connect once per launch: the requested lobby is read from the store when the socket
+    // opens, so lobby fields are deliberately not dependencies (see 'lobby-joined').
   }, [
     currentLevelId,
-    summitLobby.mode,
-    summitLobby.lobbyCode,
-    summitLobby.password,
-    summitLobby.includeBots,
+    summitSession,
     setRemoteClimbers,
     setSummitLobbyState,
     setScreen,
