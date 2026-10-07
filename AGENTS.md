@@ -25,7 +25,7 @@ Welcome! This repository (**Orb Runners**) is co-developed by **Antigravity** an
    - The player does **not** push the ball directly. Instead, `WASD` / Arrow Keys / Gamepad Left Stick tilt the gravity vector up to `MAX_TILT_RAD = 17.5°` (`0.305 rad`) relative to `livePhysics.cameraYaw`.
    - **Uphill Slope Limit**: Any uphill ramp must have a pitch angle $\theta = \text{atan2}(\Delta y, \Delta z) < 14^\circ$ (for example, `10m` rise over `50m` horizontal run = $11.3^\circ$) so the player can roll uphill purely by holding `W` even from a standstill, **OR** it must have [`BoostPad`](src/components/obstacles/BoostPad.tsx) strips with `rotation: [pitch, 0, 0]` to propel the orb up the incline.
 2. **Player Orb RigidBody (`src/components/game/PlayerOrb.tsx`)**:
-   - Uses `colliders="ball"` (`radius = 0.52`), `mass = 1.8`, `linearDamping = 0.34`, `angularDamping = 0.28`, `gravity = [0, -20.5, 0]`, and `ccd = true`.
+   - Uses a `BallCollider` with `radius = ORB_RADIUS = 0.56`, `mass = 1.8`, `linearDamping = 0.34`, `angularDamping = 0.42`, `gravity = [0, -20.5, 0]`, and `ccd = true`.
 3. **Deterministic Ballistic Jump Pads (`src/components/obstacles/JumpPad.tsx`)**:
    - Always prefer specifying `targetPosition: [tx, ty, tz]` and `arcHeight` on `JumpPadDef` (`src/types/level.ts`).
    - `JumpPad.tsx` solves the exact ballistic velocity vector compensating for `g = 20.5` and `linearDamping = 0.34` and applies it via `rigidBody.setLinvel({ x: vx, y: vy, z: vz }, true)` so the player lands squarely on the target platform regardless of approach speed.
@@ -39,7 +39,7 @@ Welcome! This repository (**Orb Runners**) is co-developed by **Antigravity** an
 
 ---
 
-## 📂 Directory Structure
+## 📂 Directory Structure (abridged)
 
 ```text
 ├── server/
@@ -78,7 +78,7 @@ Welcome! This repository (**Orb Runners**) is co-developed by **Antigravity** an
 │   │       └── SummitLobbyModal.tsx  # Public server & Private Lobby (Code/Password) modal
 │   ├── levels/
 │   │   ├── maps.ts                   # 15 Official Speedrun Campaign Stages
-│   │   └── summitMap.ts              # 25-Stage, 5-Phase "Reach the Summit" Mega-Climb (0m-250m)
+│   │   └── summitMap.ts              # "Reach the Summit": one spiral road, 9 stages, 8 Base Camps (0m-250m)
 │   ├── store/
 │   │   └── useGameStore.ts           # Zustand state, PB ghosts, medals, and multiplayer state
 │   └── types/
