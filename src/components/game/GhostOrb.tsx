@@ -26,15 +26,17 @@ export function GhostOrb() {
 
   useFrame((_, delta) => {
     const state = useGameStore.getState();
-    const elapsed = state.elapsedMs;
+    const runMs = state.runClockMs;
     const [bx, by, bz] = livePhysics.ballPosition;
 
-    // 1. Record 20Hz keyframes during active play
+    // 1. Record 20Hz keyframes during active play, stamped with the run clock. The displayed
+    // timer jumps back on every gem bonus, which used to stall recording until it caught up
+    // (a 1 s gem left a ~1 s hole the ghost slid straight across).
     if (state.playPhase === 'playing') {
-      if (elapsed - lastSampleMs.current >= 50 || currentRunGhostBuffer.frames.length === 0) {
-        lastSampleMs.current = elapsed;
+      if (runMs - lastSampleMs.current >= 50 || currentRunGhostBuffer.frames.length === 0) {
+        lastSampleMs.current = runMs;
         currentRunGhostBuffer.frames.push([
-          Math.round(elapsed),
+          Math.round(runMs),
           Number(bx.toFixed(2)),
           Number(by.toFixed(2)),
           Number(bz.toFixed(2)),
@@ -50,6 +52,8 @@ export function GhostOrb() {
       return;
     }
 
+    // New ghosts are stamped with the run clock; older saved ghosts with the displayed timer.
+    const elapsed = ghostData.clock === 'run' ? runMs : state.elapsedMs;
     const frames = ghostData.frames;
     if (frames.length < 2) {
       ghostGroupRef.current.visible = false;
@@ -59,7 +63,7 @@ export function GhostOrb() {
     ghostGroupRef.current.visible =
       state.playPhase === 'playing' || state.playPhase === 'countdown';
 
-    // Find bounding keyframes for current elapsedMs
+    // Find bounding keyframes for the current time
     let idx = 0;
     while (idx < frames.length - 2 && frames[idx + 1][0] < elapsed) {
       idx++;

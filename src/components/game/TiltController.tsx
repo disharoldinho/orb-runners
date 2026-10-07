@@ -1,6 +1,6 @@
 import { useEffect, useRef } from 'react';
 import { useFrame } from '@react-three/fiber';
-import { useRapier } from '@react-three/rapier';
+import { useAfterPhysicsStep, useRapier } from '@react-three/rapier';
 import * as THREE from 'three';
 import { livePhysics, useGameStore } from '../../store/useGameStore';
 import { touchInput } from '../../input/touchInput';
@@ -50,7 +50,6 @@ export function TiltController() {
   const checkpointRespawnTick = useGameStore((s) => s.checkpointRespawnTick);
   const startRun = useGameStore((s) => s.startRun);
   const respawnAtCheckpoint = useGameStore((s) => s.respawnAtCheckpoint);
-  const tickTimer = useGameStore((s) => s.tickTimer);
 
   const keys = useRef<{ [key: string]: boolean }>({});
   const pitchVel = useRef({ value: 0 });
@@ -99,12 +98,18 @@ export function TiltController() {
     };
   }, [startRun, respawnAtCheckpoint]);
 
+  // Run timer = simulated time. It advances once per physics step by that step's length,
+  // so it always matches what the simulation did: the old per-frame tick clamped frames to
+  // 50 ms while Rapier still simulates up to 500 ms per frame, so hitches gave free time.
+  // After-step (not before) so world.timestep is already the fixed 1/120 s, and the store
+  // is up to date before this frame's goal/checkpoint/gem sensor events are processed.
+  useAfterPhysicsStep((stepWorld) => {
+    const { playPhase: phase, tickTimer } = useGameStore.getState();
+    if (phase === 'playing') tickTimer(stepWorld.timestep * 1000);
+  });
+
   useFrame((_, delta) => {
     const dt = Math.min(delta, 0.05);
-
-    if (playPhase === 'playing') {
-      tickTimer(dt * 1000);
-    }
 
     let targetPitchInput = 0;
     let targetRollInput = 0;
