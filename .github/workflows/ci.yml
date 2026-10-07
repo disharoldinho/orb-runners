@@ -1,0 +1,52 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  check:
+    name: Typecheck, lint, build, map checks
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install
+        run: npm ci
+
+      - name: Typecheck
+        run: npm run typecheck
+
+      - name: Lint
+        run: npm run lint
+
+      - name: Build
+        run: npm run build
+
+      - name: Map visual check
+        run: npm run maps:check
+
+      - name: Summit geometry check
+        run: npm run summit:verify
+
+      - name: Bot waypoints are up to date
+        run: |
+          npm run summit:waypoints
+          git diff --exit-code -- server/summitWaypoints.json || {
+            echo "::error::server/summitWaypoints.json is stale. Run 'npm run summit:waypoints' and commit the result."
+            exit 1
+          }
