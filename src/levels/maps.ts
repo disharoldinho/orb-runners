@@ -414,7 +414,7 @@ export const MAPS: LevelData[] = [
       bronze: 94000,
     },
     checkpoints: [
-      { id: 'm5-cp1', order: 1, position: [0, 0.3, -16.5] },
+      { id: 'm5-cp1', order: 1, position: [0, 0.3, -16.5], width: 6.6 },
       { id: 'm5-cp2', order: 2, position: [0, 0.3, -67], width: 3.4 },
       { id: 'm5-cp3', order: 3, position: [-22, 0.3, -101.5], width: 3.4 },
     ],
@@ -534,8 +534,8 @@ export const MAPS: LevelData[] = [
       bronze: 93000,
     },
     checkpoints: [
-      { id: 'm6-cp1', order: 1, position: [0, 0.3, -46.3] },
-      { id: 'm6-cp2', order: 2, position: [0, 0.3, -91.7] },
+      { id: 'm6-cp1', order: 1, position: [0, 0.3, -46.3], width: 6.0 },
+      { id: 'm6-cp2', order: 2, position: [0, 0.3, -91.7], width: 6.6 },
     ],
     blocks: [
       { id: 'm6-b1', position: [0, 0, -5], size: [7, 0.6, 12], theme: 'cyber', rails: 'both' },
@@ -672,9 +672,9 @@ export const MAPS: LevelData[] = [
       bronze: 30000,
     },
     checkpoints: [
-      { id: 'm7-cp1', order: 1, position: [0, -3.673, -32.6] },
-      { id: 'm7-cp2', order: 2, position: [0, -9.378, -69.9] },
-      { id: 'm7-cp3', order: 3, position: [0, -16.062, -119] },
+      { id: 'm7-cp1', order: 1, position: [0, -3.673, -32.6], width: 6.2 },
+      { id: 'm7-cp2', order: 2, position: [0, -9.378, -69.9], width: 6.2 },
+      { id: 'm7-cp3', order: 3, position: [0, -16.062, -119], width: 6.2 },
     ],
     blocks: [
       { id: 'm7-b1', position: [0, 0, -5], size: [7, 0.6, 12], theme: 'cobalt', rails: 'both' },
