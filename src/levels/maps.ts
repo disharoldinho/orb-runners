@@ -525,13 +525,12 @@ export const MAPS: LevelData[] = [
     // there is no strip the bar cannot reach: you pass beside the hub between two sweeps.
     // Gems sit inside three sweep circles on the lane; a lava sheet below catches falls.
     goalPosition: [0, 0.3, -128],
-    // Author: autopilot (scripts/autopilot, route 6), all 4 gems, run clock 32.017 s minus
-    // 3.0 s of gems = 29.017 s -> 29.1 s.
+    // Author: autopilot (scripts/autopilot, route 6), all 4 gems, 27.933 s -> 28.0 s.
     medalTimesMs: {
-      author: 29100,
-      gold: 37000,
-      silver: 55500,
-      bronze: 93000,
+      author: 28000,
+      gold: 36000,
+      silver: 53000,
+      bronze: 89500,
     },
     checkpoints: [
       { id: 'm6-cp1', order: 1, position: [0, 0.3, -46.3], width: 6.0 },
@@ -720,19 +719,19 @@ export const MAPS: LevelData[] = [
     ],
     movingPlatforms: [
       {
-        // sideways ferry: x = -2.6 cos(t * 0.9); in line with the decks twice per cycle
+        // sideways ferry: x = -2.4 cos(0.7 t); in line with the decks twice per 9 s cycle
         id: 'm7-mp1',
-        start: [-2.6, -16.362, -128.54],
-        end: [2.6, -16.362, -128.54],
-        size: [5, 0.6, 6.6],
-        speed: 0.9,
+        start: [-2.4, -16.362, -128.54],
+        end: [2.4, -16.362, -128.54],
+        size: [6, 0.6, 6.6],
+        speed: 0.7,
         theme: 'warning',
       },
     ],
     gems: [
-      { id: 'm7-g1', position: [1.7, -2.65, -28.5], timeBonusMs: 1000 },
-      { id: 'm7-g2', position: [-1.7, -8.26, -65.81], timeBonusMs: 1000 },
-      { id: 'm7-g3', position: [-1.7, -14.9, -106.94], timeBonusMs: 1500 },
+      { id: 'm7-g1', position: [1.7, -2.65, -28.5], timeBonusMs: 500 },
+      { id: 'm7-g2', position: [-1.7, -8.26, -65.81], timeBonusMs: 500 },
+      { id: 'm7-g3', position: [-1.7, -14.9, -106.94], timeBonusMs: 1000 },
     ],
   },
 

@@ -246,14 +246,14 @@ export const ROUTES = {
       {
         p: [0.8, -17.5],
         v: 6.5,
-        hold: { type: 'align', id: 'm6-rh1', dist: 7.2, windows: SWEEP, mod: Math.PI },
+        hold: { type: 'align', id: 'm6-rh1', dist: 7.2, windows: SWEEP, mod: Math.PI, predict: 0 },
       },
       { p: [1.7, -24.7], v: 6.5 },
       { p: [0.8, -29.5], v: 6 },
       {
         p: [-0.8, -33.4],
         v: 6.5,
-        hold: { type: 'align', id: 'm6-rh2', dist: 6.7, windows: SWEEP, mod: Math.PI },
+        hold: { type: 'align', id: 'm6-rh2', dist: 6.7, windows: SWEEP, mod: Math.PI, predict: 0 },
       },
       { p: [-1.7, -40.1], v: 6 },
       { p: [1.8, -45.5], v: 5 },
@@ -261,21 +261,21 @@ export const ROUTES = {
       {
         p: [0.8, -61.5],
         v: 6.5,
-        hold: { type: 'align', id: 'm6-rh3', dist: 7.4, windows: SWEEP, mod: Math.PI },
+        hold: { type: 'align', id: 'm6-rh3', dist: 7.4, windows: SWEEP, mod: Math.PI, predict: 0 },
       },
       { p: [1.7, -68.9], v: 6.5 },
       { p: [0, -74], v: 6 },
       {
         p: [-0.8, -77.5],
         v: 6.5,
-        hold: { type: 'align', id: 'm6-rh4', dist: 7.6, windows: SWEEP, mod: Math.PI },
+        hold: { type: 'align', id: 'm6-rh4', dist: 7.6, windows: SWEEP, mod: Math.PI, predict: 0 },
       },
       { p: [-1.7, -85.1], v: 6.5 },
       { p: [0, -95], v: 7 },
       {
         p: [0.8, -106.5],
         v: 6.5,
-        hold: { type: 'align', id: 'm6-rh5', dist: 8.1, windows: SWEEP, mod: Math.PI },
+        hold: { type: 'align', id: 'm6-rh5', dist: 8.1, windows: SWEEP, mod: Math.PI, predict: 0 },
       },
       { p: [1.7, -114.6], v: 7 },
       { p: [0, -124], v: 6 },
@@ -284,7 +284,7 @@ export const ROUTES = {
   },
   7: {
     // Down each ramp on the gem side, weave the chicanes, brake on the last flat and cross
-    // when the ferry will be in line (x = -2.6 cos(0.9 t)).
+    // when the ferry will be in line (x = -2.4 cos(0.7 t)).
     points: [
       { p: [0, 0], v: 8 },
       { p: [0, -11], v: 10 },
@@ -306,8 +306,8 @@ export const ROUTES = {
           type: 'phase',
           id: 'm7-mp1',
           windows: [
-            [0.89, 1.26],
-            [4.03, 4.4],
+            [0.45, 1.0],
+            [3.59, 4.14],
           ],
           lead: 0.25,
         },
