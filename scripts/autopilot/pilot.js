@@ -50,7 +50,7 @@ window.__startPilot = async (stageId, route, opts = {}) => {
     return (vcap - v0) / A + (d - da) / vcap;
   };
   // v0: speed when leaving the hold point; vcap: this profile's speed on the next segment
-  const holdOk = (h, t, v0 = 0, vcap = 6) => {
+  const holdOk = (h, t, v0 = 0, vcap = 6, extraDist = 0) => {
     if (!h) return true;
     if (h.type === 'align') {
       // Spinning bridge: after travelling h.dist metres from the hold point (at this pilot's
@@ -59,7 +59,7 @@ window.__startPilot = async (stageId, route, opts = {}) => {
       const d = byId('rotatingHazards', h.id);
       const w = d.angularVelocity[1];
       const mod = h.mod ?? Math.PI / 2;
-      let a = (w * (t + travelTime(h.dist, v0, vcap))) % mod;
+      let a = (w * (t + travelTime(h.dist + extraDist, v0, vcap))) % mod;
       if (a < 0) a += mod;
       let rel = a > mod / 2 ? a - mod : a; // nearest alignment, signed by yaw
       if (w < 0) rel = -rel;
@@ -312,9 +312,17 @@ window.__startPilot = async (stageId, route, opts = {}) => {
       const h = pts[nh.j].hold;
       const v = Math.hypot(livePhysics.ballVelocity[0], livePhysics.ballVelocity[2]);
       const vcap = (pts[nh.j].v ?? 8) * speedScale;
-      if (nh.d < (h.radius ?? 1.2) && holdOk(h, t, v, vcap)) released.add(nh.j);
-      else if (v > 1 && nh.d < (h.predict ?? 5) && holdOk(h, t + nh.d / v, v, vcap))
+      let rel = false;
+      if (nh.d < (h.radius ?? 1.2) && holdOk(h, t, v, vcap, nh.d)) rel = true;
+      else if (v > 1 && pr.seg === nh.j - 1 && nh.d < (h.predict ?? 5)) {
+        // (only on the hold's own approach segment, i.e. while actually heading for it)
+        // align holds model the whole run from here; others assume the current speed holds
+        rel = h.type === 'align' ? holdOk(h, t, v, vcap, nh.d) : holdOk(h, t + nh.d / v, v, vcap);
+      }
+      if (rel) {
         released.add(nh.j);
+        trace.push(['release', nh.j, +t.toFixed(3), +nh.d.toFixed(2), +v.toFixed(2)]);
+      }
     }
     const la = pointAlong(pr.seg, pr.u, lookahead);
     let dx = la.x - x;
