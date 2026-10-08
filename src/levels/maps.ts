@@ -197,7 +197,7 @@ export const MAPS: LevelData[] = [
     killPlaneY: -12,
     // A fully railed boulevard (1 m pinball walls from the first bumper to the last): a
     // bumper kick can bang you into a wall but never over it. Three blocks of rising density, each followed by a checkpoint:
-    // a wide slalom you can thread straight -> a diamond cluster (gem in its pocket) and a
+    // a wide slalom you can thread straight -> an arrowhead cluster (gem inside it) and a
     // bumper gate -> a narrow chicane gauntlet that forces a weave -> gold finish. Side gems
     // sit on the tight side of a bumper: taking one means threading the gap.
     goalPosition: [0, 0.3, -133],
@@ -221,7 +221,7 @@ export const MAPS: LevelData[] = [
       { id: 'm3-cap2r', position: [4.5, 0.8, -46.85], size: [1, 1.0, 0.3], theme: 'warning' },
       // CP1 deck
       { id: 'm3-b3', position: [0, 0, -51], size: [8, 0.6, 8], theme: 'gold', rails: 'both', railHeight: 1.0 },
-      // Diamond + gate
+      // Arrowhead + gate
       { id: 'm3-cap3l', position: [-4.75, 0.8, -55.15], size: [1.5, 1.0, 0.3], theme: 'warning' },
       { id: 'm3-cap3r', position: [4.75, 0.8, -55.15], size: [1.5, 1.0, 0.3], theme: 'warning' },
       { id: 'm3-b4', position: [0, 0, -70], size: [11, 0.6, 30], theme: 'sunset', rails: 'both', railHeight: 1.0 },
@@ -263,24 +263,24 @@ export const MAPS: LevelData[] = [
       { id: 'm3-bmp2', position: [1.8, 0.75, -25], radius: 0.8 },
       { id: 'm3-bmp3', position: [-1.8, 0.75, -32], radius: 0.8 },
       { id: 'm3-bmp4', position: [1.8, 0.75, -39], radius: 0.8 },
-      // Diamond (gem in the pocket)
+      // Arrowhead (gem inside, open at the back). Bumper kicks add energy, so there is no
+      // closed pocket anywhere: a ball can't get trapped ricocheting between bumpers.
       { id: 'm3-bmp5', position: [0, 0.75, -58.5], radius: 0.9 },
-      { id: 'm3-bmp6', position: [-2.4, 0.75, -63], radius: 0.85 },
-      { id: 'm3-bmp7', position: [2.4, 0.75, -63], radius: 0.85 },
-      { id: 'm3-bmp8', position: [0, 0.75, -67.5], radius: 1.0 },
+      { id: 'm3-bmp6', position: [-2.6, 0.75, -63.5], radius: 0.85 },
+      { id: 'm3-bmp7', position: [2.6, 0.75, -63.5], radius: 0.85 },
       // Gate + post
-      { id: 'm3-bmp9', position: [-2.4, 0.75, -75], radius: 0.9 },
-      { id: 'm3-bmp10', position: [2.4, 0.75, -75], radius: 0.9 },
-      { id: 'm3-bmp11', position: [0, 0.75, -80.5], radius: 1.0 },
+      { id: 'm3-bmp8', position: [-2.4, 0.75, -75], radius: 0.9 },
+      { id: 'm3-bmp9', position: [2.4, 0.75, -75], radius: 0.9 },
+      { id: 'm3-bmp10', position: [0, 0.75, -80.5], radius: 1.0 },
       // Gauntlet chicanes (no straight line through)
-      { id: 'm3-bmp12', position: [-1.3, 0.75, -99], radius: 0.7 },
-      { id: 'm3-bmp13', position: [1.3, 0.75, -105.5], radius: 0.7 },
-      { id: 'm3-bmp14', position: [-1.3, 0.75, -112], radius: 0.7 },
-      { id: 'm3-bmp15', position: [1.3, 0.75, -118.5], radius: 0.7 },
+      { id: 'm3-bmp11', position: [-1.3, 0.75, -99], radius: 0.7 },
+      { id: 'm3-bmp12', position: [1.3, 0.75, -105.5], radius: 0.7 },
+      { id: 'm3-bmp13', position: [-1.3, 0.75, -112], radius: 0.7 },
+      { id: 'm3-bmp14', position: [1.3, 0.75, -118.5], radius: 0.7 },
     ],
     gems: [
       { id: 'm3-g1', position: [-3.6, 0.9, -32], timeBonusMs: 1000 },
-      { id: 'm3-g2', position: [0, 0.9, -63], timeBonusMs: 1500 },
+      { id: 'm3-g2', position: [0, 0.9, -62.8], timeBonusMs: 1500 },
       { id: 'm3-g3', position: [-3.3, 0.9, -80.5], timeBonusMs: 1000 },
       { id: 'm3-g4', position: [1.6, 0.9, -112], timeBonusMs: 1000 },
     ],
@@ -376,8 +376,8 @@ export const MAPS: LevelData[] = [
     ],
     gems: [
       { id: 'm4-g1', position: [0, 0.9, -15.97], timeBonusMs: 1000 },
-      { id: 'm4-g2', position: [-3.4, 0.9, -35.91], timeBonusMs: 1500 },
-      { id: 'm4-g3', position: [3.4, 0.9, -53.85], timeBonusMs: 1500 },
+      { id: 'm4-g2', position: [-3.4, 0.9, -35.91], timeBonusMs: 2000 },
+      { id: 'm4-g3', position: [3.4, 0.9, -53.85], timeBonusMs: 2000 },
       { id: 'm4-g4', position: [0, 0.9, -73.79], timeBonusMs: 1000 },
     ],
   },

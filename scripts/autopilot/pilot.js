@@ -106,10 +106,21 @@ window.__startPilot = async (stageId, route, opts = {}) => {
     touchInput.stickY = -pitch * raw;
   };
 
+  const projOn = (k, x, z) => {
+    const a = pts[k].p;
+    const b = pts[k + 1].p;
+    const dx = b[0] - a[0];
+    const dz = b[2] - a[2];
+    const L2 = dx * dx + dz * dz || 1e-9;
+    let u = ((x - a[0]) * dx + (z - a[2]) * dz) / L2;
+    u = Math.max(0, Math.min(1, u));
+    return { seg: k, u, dist: Math.hypot(x - (a[0] + dx * u), z - (a[2] + dz * u)) };
+  };
   const project = (x, z, from, span = 4) => {
-    // nearest point on segments [from, from+span-1]; returns {seg, u, dist}
-    let best = null;
-    // never project past an unreleased hold (overshooting it must not skip the wait)
+    // Progress along the route is sequential: move to the next segment only once the current
+    // one is finished (or the next is clearly closer, i.e. a cut corner). A nearest-segment
+    // search would jump onto the return leg of an out-and-back excursion.
+    // Never project past an unreleased hold (overshooting it must not skip the wait).
     let end = Math.min(pts.length - 1, from + span);
     for (let j = from + 1; j < end; j++) {
       if (pts[j].hold && !released.has(j)) {
@@ -117,21 +128,23 @@ window.__startPilot = async (stageId, route, opts = {}) => {
         break;
       }
     }
-    for (let k = from; k < end; k++) {
-      const a = pts[k].p;
-      const b = pts[k + 1].p;
-      const dx = b[0] - a[0];
-      const dz = b[2] - a[2];
-      const L2 = dx * dx + dz * dz || 1e-9;
-      let u = ((x - a[0]) * dx + (z - a[2]) * dz) / L2;
-      u = Math.max(0, Math.min(1, u));
-      const px = a[0] + dx * u;
-      const pz = a[2] + dz * u;
-      const d = Math.hypot(x - px, z - pz);
-      if (!best || d < best.dist - 1e-6) best = { seg: k, u, dist: d };
+    let cur = projOn(from, x, z);
+    while (cur.seg + 1 < end) {
+      const next = projOn(cur.seg + 1, x, z);
+      if (cur.u >= 0.999 || next.dist < cur.dist - 0.6) cur = next;
+      else break;
+    }
+    return cur;
+  };
+  const projectGlobal = (x, z) => {
+    let best = projOn(0, x, z);
+    for (let k = 1; k < pts.length - 1; k++) {
+      const p = projOn(k, x, z);
+      if (p.dist < best.dist - 1e-6) best = p;
     }
     return best;
   };
+
   const pointAlong = (k, u, ahead) => {
     // walk `ahead` metres along the polyline from (k, u), stopping at an unreleased hold
     let dist = ahead + u * segLen[k];
@@ -183,7 +196,7 @@ window.__startPilot = async (stageId, route, opts = {}) => {
       if (st.playPhase === 'playing' && lastPhase === 'fallout') {
         // respawned at a checkpoint: re-acquire the route near the respawn point
         const [rx, , rz] = livePhysics.ballPosition;
-        seg = project(rx, rz, 0, pts.length).seg;
+        seg = projectGlobal(rx, rz).seg;
       }
       lastPhase = st.playPhase;
     }
