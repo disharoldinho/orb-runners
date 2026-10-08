@@ -93,7 +93,6 @@ window.__startPilot = async (stageId, route, opts = {}) => {
   };
 
   let seg = 0; // current polyline segment
-  let holdIndex = -1; // point index we are holding at (if any)
   const released = new Set();
   const trace = [];
   const result = { done: false };
