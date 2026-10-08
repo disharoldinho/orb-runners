@@ -308,12 +308,12 @@ export const MAPS: LevelData[] = [
     // Arms stop 0.37 m short of the decks, so nothing ever clips through a deck, and every
     // deck end closes down to the 3.6 m arm width with caps.
     goalPosition: [0, 0.3, -86.5],
-    // Author: autopilot (scripts/autopilot, route 4), all 4 gems, 34.633 s -> 34.7 s.
+    // Author: autopilot (scripts/autopilot, route 4), all 4 gems, 28.067 s -> 28.1 s.
     medalTimesMs: {
-      author: 34700,
-      gold: 44500,
-      silver: 66000,
-      bronze: 111000,
+      author: 28100,
+      gold: 36000,
+      silver: 53500,
+      bronze: 90000,
     },
     checkpoints: [
       { id: 'm4-cp1', order: 1, position: [0, 0.3, -25] },
