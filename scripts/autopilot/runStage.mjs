@@ -112,7 +112,9 @@ for (const stageId of stages) {
           ...variant,
           speedScale: (base.speedScale ?? 1) * (variant.speedScale ?? 1),
         };
-        const r = await runOnce(stageId, route, profile);
+        // a variant may also carry its own line (e.g. the other branch of a route choice)
+        const line0 = variant.points ? { ...route, points: variant.points } : route;
+        const r = await runOnce(stageId, line0, profile);
         const line = {
           stage: stageId,
           profile: pname,

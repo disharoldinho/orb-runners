@@ -63,7 +63,7 @@ window.__startPilot = async (stageId, route, opts = {}) => {
       if (a < 0) a += mod;
       let rel = a > mod / 2 ? a - mod : a; // nearest alignment, signed by yaw
       if (w < 0) rel = -rel;
-      return rel >= h.window[0] && rel <= h.window[1];
+      return (h.windows ?? [h.window]).some(([lo, hi]) => rel >= lo && rel <= hi);
     }
     if (h.type === 'time') return t >= h.t;
     if (h.type === 'platform') {
@@ -93,7 +93,6 @@ window.__startPilot = async (stageId, route, opts = {}) => {
   };
 
   let seg = 0; // current polyline segment
-  let holdIndex = -1; // point index we are holding at (if any)
   const released = new Set();
   const trace = [];
   const result = { done: false };
