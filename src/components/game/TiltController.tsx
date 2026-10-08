@@ -4,6 +4,7 @@ import { useAfterPhysicsStep, useRapier } from '@react-three/rapier';
 import * as THREE from 'three';
 import { livePhysics, useGameStore } from '../../store/useGameStore';
 import { touchInput } from '../../input/touchInput';
+import { isShortcutKey, isTypingTarget } from '../../input/keyboardGuards';
 
 /** Maximum board tilt angle in radians (~17.5 degrees for smooth, controllable precision) */
 export const MAX_TILT_RAD = THREE.MathUtils.degToRad(17.5);
@@ -62,9 +63,14 @@ export function TiltController() {
 
   useEffect(() => {
     const onKeyDown = (e: KeyboardEvent) => {
+      if (isTypingTarget(e.target)) return;
+      // macOS sends no keyup for keys released while Cmd is held, so a Cmd chord
+      // (e.g. Cmd+A, Cmd+D) would leave that tilt key stuck down. Ignore them.
+      if (e.metaKey) return;
       const code = e.code;
       keys.current[code] = true;
 
+      if (!isShortcutKey(e)) return;
       if (code === 'KeyR' || code === 'Delete') {
         startRun();
       } else if (code === 'KeyC' || code === 'Backspace') {
@@ -73,12 +79,14 @@ export function TiltController() {
       }
     };
 
-    const onKeyUp = (e: KeyboardEvent) => {
-      keys.current[e.code] = false;
-    };
-
     const clearKeys = () => {
       keys.current = {};
+    };
+
+    const onKeyUp = (e: KeyboardEvent) => {
+      keys.current[e.code] = false;
+      // Same macOS quirk: anything released while Cmd was down never got its keyup.
+      if (e.key === 'Meta') clearKeys();
     };
 
     // Mobile app-switch / tab hide often skips window.blur; visibilitychange is reliable.
