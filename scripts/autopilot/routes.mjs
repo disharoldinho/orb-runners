@@ -13,6 +13,24 @@ export const PROFILES = {
   steady: { speedScale: 0.7, kp: 2.2, lookahead: 2.0 },
 };
 
+// Stage 5 summit zigzag, shared by both branches of the junction choice.
+const ROUTE5_TAIL = [
+  { p: [0, -90], v: 4 },
+  { p: [-3, -96], v: 9 },
+  { p: [-19, -96], v: 4 },
+  { p: [-22, -99.5], v: 9 },
+  { p: [-22, -124], v: 6 },
+  { p: [-22, -126], v: 3 },
+];
+
+// Stage 6 sweepers: safe arrival angles (rad past perpendicular) at the pivot line,
+// from a numeric check of the bar against a ball crossing on the 1.7 m lane (safe for
+// |rel| >= ~0.85; 0.15 rad margin).
+const SWEEP = [
+  [1.0, 1.571],
+  [-1.571, -1.0],
+];
+
 export const ROUTES = {
   1: {
     points: [
@@ -186,19 +204,74 @@ export const ROUTES = {
     ],
   },
   5: {
-    // Shortcut line: up the spur to the switch (and gem), back to the hub, boosted bridge.
+    variants: [
+      { name: 'shortcut' },
+      {
+        // the right switchback, weaving the bumpers for its gem
+        name: 'switchback',
+        points: [
+          { p: [0, 0], v: 10 },
+          { p: [0, -14], v: 6 },
+          { p: [3, -19], v: 6 },
+          { p: [10.5, -19.5], v: 3.5 },
+          { p: [11.5, -23], v: 9 },
+          { p: [11.5, -57], v: 5 },
+          { p: [10.5, -61], v: 6 },
+          { p: [2, -61.5], v: 6 },
+          { p: [0, -66], v: 10 },
+          ...ROUTE5_TAIL,
+        ],
+      },
+    ],
+    // Shortcut line: up the spur to the switch (and gem), back to the hub, boosted bridge,
+    // then the summit ridge, the walled corner and the west leg.
     points: [
       { p: [0, 0], v: 10 },
       { p: [0, -14], v: 6 },
-      { p: [-2.5, -18.6], v: 5 },
-      { p: [-10.8, -18.7], v: 3 },
-      { p: [-11.4, -19.2], v: 3 },
-      { p: [-10.5, -19.6], v: 4 },
+      { p: [-2.5, -18.6], v: 7 },
+      { p: [-16.8, -18.7], v: 3 },
+      { p: [-17.4, -19.2], v: 3 },
+      { p: [-16.5, -19.6], v: 7 },
       { p: [-3, -20], v: 5 },
       { p: [0, -24], v: 8 },
-      { p: [0, -56], v: 12 },
-      { p: [0, -78], v: 10 },
-      { p: [0, -81], v: 4 },
+      { p: [0, -56], v: 10 },
+      ...ROUTE5_TAIL,
+    ],
+  },
+  6: {
+    // Lane beside each hub (on the side where the arm sweeps the same way you roll), entered
+    // only when the bar will be near-parallel to the catwalk as you pass the pivot.
+    points: [
+      { p: [0, 0], v: 8 },
+      { p: [0.8, -17.5], v: 6.5, hold: { type: 'align', id: 'm6-rh1', dist: 7.2, windows: SWEEP } },
+      { p: [1.7, -24.7], v: 6.5 },
+      { p: [0.8, -29.5], v: 6 },
+      {
+        p: [-0.8, -33.4],
+        v: 6.5,
+        hold: { type: 'align', id: 'm6-rh2', dist: 6.7, windows: SWEEP },
+      },
+      { p: [-1.7, -40.1], v: 6 },
+      { p: [1.8, -45.5], v: 5 },
+      { p: [0.6, -51], v: 6 },
+      { p: [0.8, -61.5], v: 6.5, hold: { type: 'align', id: 'm6-rh3', dist: 7.4, windows: SWEEP } },
+      { p: [1.7, -68.9], v: 6.5 },
+      { p: [0, -74], v: 6 },
+      {
+        p: [-0.8, -77.5],
+        v: 6.5,
+        hold: { type: 'align', id: 'm6-rh4', dist: 7.6, windows: SWEEP },
+      },
+      { p: [-1.7, -85.1], v: 6.5 },
+      { p: [0, -95], v: 7 },
+      {
+        p: [0.8, -106.5],
+        v: 6.5,
+        hold: { type: 'align', id: 'm6-rh5', dist: 8.1, windows: SWEEP },
+      },
+      { p: [1.7, -114.6], v: 7 },
+      { p: [0, -124], v: 6 },
+      { p: [0, -130], v: 3 },
     ],
   },
 };

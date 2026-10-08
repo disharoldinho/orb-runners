@@ -398,11 +398,13 @@ export const MAPS: LevelData[] = [
     accentColor: '#10b981',
     spawnPosition: [0, 1.0, 0],
     killPlaneY: -15,
-    // A real choice at the junction hub: detour 8 m up the left spur to hit the switch and
+    // A real choice at the junction hub: detour 14 m up the left spur to hit the switch and
     // raise the 34 m boosted shortcut, or take the long railed switchback on the right
     // (bumpers on the inside line, its own gem). Every open edge of both hubs is capped, so
-    // the only ways on are the spur, the bridge mouth and the switchback arms.
-    goalPosition: [0, 0.3, -78],
+    // the only ways on are the spur, the bridge mouth and the switchback arms. Both lines
+    // rejoin for the summit zigzag: a 28 m ridge railed on the left only, a walled corner,
+    // the west leg, a second corner (checkpoint) and a final ridge railed on the right.
+    goalPosition: [-22, 0.3, -124],
     medalTimesMs: {
       author: 8200,
       gold: 11000,
@@ -411,7 +413,8 @@ export const MAPS: LevelData[] = [
     },
     checkpoints: [
       { id: 'm5-cp1', order: 1, position: [0, 0.3, -16.5] },
-      { id: 'm5-cp2', order: 2, position: [0, 0.3, -67] },
+      { id: 'm5-cp2', order: 2, position: [0, 0.3, -67], width: 3.4 },
+      { id: 'm5-cp3', order: 3, position: [-22, 0.3, -101.5], width: 3.4 },
     ],
     blocks: [
       { id: 'm5-b1', position: [0, 0, -7], size: [7, 0.6, 16], theme: 'meadow', rails: 'both' },
@@ -426,14 +429,14 @@ export const MAPS: LevelData[] = [
       { id: 'm5-hub1-nl', position: [-3, 0.7, -22.85], size: [2, 0.8, 0.3], theme: 'warning' },
       { id: 'm5-hub1-nr', position: [3, 0.7, -22.85], size: [2, 0.8, 0.3], theme: 'warning' },
       // Left spur to the switch (dead end, capped)
-      { id: 'm5-spur', position: [-9, 0, -19], size: [4, 0.6, 10], rotation: [0, Math.PI / 2, 0], theme: 'warning', rails: 'both' },
-      { id: 'm5-spur-end', position: [-13.85, 0.7, -19], size: [0.3, 0.8, 4], theme: 'warning' },
+      { id: 'm5-spur', position: [-12, 0, -19], size: [4, 0.6, 16], rotation: [0, Math.PI / 2, 0], theme: 'warning', rails: 'both' },
+      { id: 'm5-spur-end', position: [-19.85, 0.7, -19], size: [0.3, 0.8, 4], theme: 'warning' },
       // Right switchback: arm -> long boulevard -> arm
       { id: 'm5-arm1', position: [6.5, 0, -19], size: [4, 0.6, 5], rotation: [0, Math.PI / 2, 0], theme: 'meadow', rails: 'both' },
-      { id: 'm5-sb1', position: [11.5, 0, -19], size: [5, 0.6, 8], theme: 'meadow', rails: 'right' },
+      { id: 'm5-sb1', position: [11.5, 0, -19], size: [5, 0.6, 8], theme: 'meadow', rails: 'right', railHeight: 1 },
       { id: 'm5-sb1-cap', position: [11.5, 0.7, -15.15], size: [5, 0.8, 0.3], theme: 'warning' },
-      { id: 'm5-sb2', position: [11.5, 0, -40], size: [5, 0.6, 34], theme: 'meadow', rails: 'both' },
-      { id: 'm5-sb3', position: [11.5, 0, -61], size: [5, 0.6, 8], theme: 'meadow', rails: 'right' },
+      { id: 'm5-sb2', position: [11.5, 0, -40], size: [5, 0.6, 34], theme: 'meadow', rails: 'both', railHeight: 1 },
+      { id: 'm5-sb3', position: [11.5, 0, -61], size: [5, 0.6, 8], theme: 'meadow', rails: 'right', railHeight: 1 },
       { id: 'm5-sb3-cap', position: [11.5, 0.7, -64.85], size: [5, 0.8, 0.3], theme: 'warning' },
       { id: 'm5-arm2', position: [6.5, 0, -61], size: [4, 0.6, 5], rotation: [0, Math.PI / 2, 0], theme: 'meadow', rails: 'both' },
       // Rejoin hub
@@ -442,18 +445,42 @@ export const MAPS: LevelData[] = [
       { id: 'm5-hub2-sr', position: [3, 0.7, -57.15], size: [2, 0.8, 0.3], theme: 'warning' },
       { id: 'm5-hub2-wr1', position: [3.85, 0.7, -58], size: [0.3, 0.8, 2], theme: 'warning' },
       { id: 'm5-hub2-wr2', position: [3.85, 0.7, -64], size: [0.3, 0.8, 2], theme: 'warning' },
-      // Goal runway
-      { id: 'm5-b8', position: [0, 0, -73], size: [8, 0.6, 16], theme: 'gold', rails: 'both' },
+      { id: 'm5-hub2-nl', position: [-3, 0.7, -64.85], size: [2, 0.8, 0.3], theme: 'warning' },
+      { id: 'm5-hub2-nr', position: [3, 0.7, -64.85], size: [2, 0.8, 0.3], theme: 'warning' },
+      // Summit ridge: narrow, railed on the left only, then a walled corner and the west leg
+      { id: 'm5-ridge', position: [0, 0, -79], size: [4, 0.6, 28], theme: 'meadow', rails: 'left' },
+      { id: 'm5-c1', position: [0, 0, -96], size: [6, 0.6, 6], theme: 'meadow' },
+      { id: 'm5-c1-sl', position: [-2.5, 0.7, -93.15], size: [1, 0.8, 0.3], theme: 'warning' },
+      { id: 'm5-c1-sr', position: [2.5, 0.7, -93.15], size: [1, 0.8, 0.3], theme: 'warning' },
+      { id: 'm5-c1-e', position: [2.85, 0.7, -96], size: [0.3, 0.8, 5.4], theme: 'warning' },
+      { id: 'm5-c1-n', position: [0, 0.7, -98.85], size: [6, 0.8, 0.3], theme: 'warning' },
+      { id: 'm5-leg', position: [-11, 0, -96], size: [4, 0.6, 16], rotation: [0, Math.PI / 2, 0], theme: 'meadow', rails: 'both' },
+      { id: 'm5-c2', position: [-22, 0, -96], size: [6, 0.6, 6], theme: 'meadow' },
+      { id: 'm5-c2-s', position: [-22, 0.7, -93.15], size: [6, 0.8, 0.3], theme: 'warning' },
+      { id: 'm5-c2-w', position: [-24.85, 0.7, -96], size: [0.3, 0.8, 5.4], theme: 'warning' },
+      { id: 'm5-c2-nl', position: [-24.5, 0.7, -98.85], size: [1, 0.8, 0.3], theme: 'warning' },
+      { id: 'm5-c2-nr', position: [-19.5, 0.7, -98.85], size: [1, 0.8, 0.3], theme: 'warning' },
+      { id: 'm5-f3', position: [-22, 0, -109], size: [4, 0.6, 20], theme: 'meadow', rails: 'right' },
+      // Goal deck
+      { id: 'm5-b8', position: [-22, 0, -123], size: [8, 0.6, 8], theme: 'gold', rails: 'both' },
+      { id: 'm5-b8-sl', position: [-25, 0.7, -119.15], size: [2, 0.8, 0.3], theme: 'warning' },
+      { id: 'm5-b8-sr', position: [-19, 0.7, -119.15], size: [2, 0.8, 0.3], theme: 'warning' },
+      { id: 'm5-b8-end', position: [-22, 0.7, -126.85], size: [7.4, 0.8, 0.3], theme: 'warning' },
       // Set-dressing: crystal markers at the junction (no collider)
       { id: 'm5-crys1', position: [-5.2, 0.6, -13.6], size: [0.6, 2.2, 0.6], theme: 'crystal', decorative: true },
       { id: 'm5-crys2', position: [5.2, 0.6, -13.6], size: [0.6, 2.2, 0.6], theme: 'crystal', decorative: true },
       { id: 'm5-crys3', position: [5.2, 0.6, -55.6], size: [0.6, 2.2, 0.6], theme: 'crystal', decorative: true },
       { id: 'm5-crys4', position: [-5.2, 0.6, -55.6], size: [0.6, 2.2, 0.6], theme: 'crystal', decorative: true },
+      { id: 'm5-crys5', position: [4.2, 0.6, -100.2], size: [0.6, 2.2, 0.6], theme: 'crystal', decorative: true },
+      { id: 'm5-crys6', position: [-18.6, 0.6, -101.2], size: [0.6, 2.2, 0.6], theme: 'crystal', decorative: true },
+      { id: 'm5-crys7', position: [-18.6, 0.6, -90.8], size: [0.6, 2.2, 0.6], theme: 'crystal', decorative: true },
+      { id: 'm5-crys8', position: [-27.2, 0.6, -120.2], size: [0.6, 2.2, 0.6], theme: 'crystal', decorative: true },
+      { id: 'm5-crys9', position: [-16.8, 0.6, -120.2], size: [0.6, 2.2, 0.6], theme: 'crystal', decorative: true },
     ],
     switchBridges: [
       {
         id: 'm5-sw1',
-        switchPosition: [-12, 0.3, -19],
+        switchPosition: [-18, 0.3, -19],
         bridgePosition: [0, 0, -40],
         bridgeSize: [4, 0.6, 34],
         color: '#10b981',
@@ -463,12 +490,14 @@ export const MAPS: LevelData[] = [
       { id: 'm5-bp1', position: [0, 0.3, -28], size: [2.8, 4.5], force: 15, color: '#10b981' },
     ],
     bumpers: [
-      { id: 'm5-bmp1', position: [10.4, 0.75, -30], radius: 0.7 },
-      { id: 'm5-bmp2', position: [12.6, 0.75, -40], radius: 0.7 },
-      { id: 'm5-bmp3', position: [10.4, 0.75, -50], radius: 0.7 },
+      // edge bumpers: the centre line (and its gem) clears them by 1.5 m; hug a rail and
+      // they kick you back to the middle (no ball-sized gap to the rail, so no pocket)
+      { id: 'm5-bmp1', position: [10, 0.75, -30], radius: 0.7 },
+      { id: 'm5-bmp2', position: [13, 0.75, -40], radius: 0.7 },
+      { id: 'm5-bmp3', position: [10, 0.75, -50], radius: 0.7 },
     ],
     gems: [
-      { id: 'm5-g1', position: [-10.5, 0.9, -19], timeBonusMs: 1000 },
+      { id: 'm5-g1', position: [-16.5, 0.9, -19], timeBonusMs: 1000 },
       { id: 'm5-g2', position: [0, 0.9, -48], timeBonusMs: 1000 },
       { id: 'm5-g3', position: [11.5, 0.9, -40], timeBonusMs: 1500 },
     ],
@@ -479,14 +508,21 @@ export const MAPS: LevelData[] = [
   // ============================================================================
   {
     id: 6,
+    layoutVersion: 2,
     name: 'Pendulum Peril',
-    subtitle: 'Dodge the sweeping hazard beams across narrow catwalks',
+    subtitle: 'Time your run past five sweeping beams over the lava',
     difficulty: 3,
     skyPreset: 'neon',
     accentColor: '#f72585',
     spawnPosition: [0, 1.0, 0],
     killPlaneY: -14,
-    goalPosition: [0, 0.3, -52],
+    // Five sweepers in rising speed, staged in pairs: catwalk -> sweep pad -> catwalk -> sweep
+    // pad -> pocket deck (checkpoint), twice, then a last, longest, fastest sweeper before the
+    // gold finish. Catwalks are railed on alternating sides; the sweep pads are open, sized so
+    // the bar tips stop 0.3 m short of the pad edges and its end caps (nothing clips), and
+    // there is no strip the bar cannot reach: you pass beside the hub between two sweeps.
+    // Gems sit inside three sweep circles on the lane; a lava sheet below catches falls.
+    goalPosition: [0, 0.3, -128],
     medalTimesMs: {
       author: 10500,
       gold: 13500,
@@ -494,48 +530,115 @@ export const MAPS: LevelData[] = [
       bronze: 36000,
     },
     checkpoints: [
-      { id: 'm6-cp1', order: 1, position: [0, 0.3, -31] },
+      { id: 'm6-cp1', order: 1, position: [0, 0.3, -46.3] },
+      { id: 'm6-cp2', order: 2, position: [0, 0.3, -91.7] },
     ],
     blocks: [
-      { id: 'm6-b1', position: [0, 0, -4], size: [6, 0.6, 10], theme: 'cyber', rails: 'both' },
-      { id: 'm6-b2', position: [0, 0, -18], size: [4.0, 0.6, 19], theme: 'cyber' },
-      { id: 'm6-b3', position: [0, 0, -31], size: [6.5, 0.6, 8], theme: 'warning' },
-      { id: 'm6-b4', position: [0, 0, -44], size: [4.4, 0.6, 19], theme: 'cyber' },
+      { id: 'm6-b1', position: [0, 0, -5], size: [7, 0.6, 12], theme: 'cyber', rails: 'both' },
+      { id: 'm6-cap1l', position: [-2.75, 0.7, -10.85], size: [1.5, 0.8, 0.3], theme: 'warning' },
+      { id: 'm6-cap1r', position: [2.75, 0.7, -10.85], size: [1.5, 0.8, 0.3], theme: 'warning' },
+      { id: 'm6-w1', position: [0, 0, -16.0], size: [4, 0.6, 10], theme: 'cyber', rails: 'left' },
+      // Sweeper 1: 6.2 m bar, omega 1.4
+      { id: 'm6-p1', position: [0, 0, -24.7], size: [6.8, 0.6, 7.4], theme: 'warning' },
+      { id: 'm6-p1-sl', position: [-2.7, 0.7, -21.15], size: [1.4, 0.8, 0.3], theme: 'warning' },
+      { id: 'm6-p1-sr', position: [2.7, 0.7, -21.15], size: [1.4, 0.8, 0.3], theme: 'warning' },
+      { id: 'm6-p1-nl', position: [-2.7, 0.7, -28.25], size: [1.4, 0.8, 0.3], theme: 'warning' },
+      { id: 'm6-p1-nr', position: [2.7, 0.7, -28.25], size: [1.4, 0.8, 0.3], theme: 'warning' },
+      { id: 'm6-w2', position: [0, 0, -32.4], size: [4, 0.6, 8], theme: 'cyber', rails: 'right' },
+      // Sweeper 2: 6.2 m bar, omega -1.7
+      { id: 'm6-p2', position: [0, 0, -40.1], size: [6.8, 0.6, 7.4], theme: 'warning' },
+      { id: 'm6-p2-sl', position: [-2.7, 0.7, -36.55], size: [1.4, 0.8, 0.3], theme: 'warning' },
+      { id: 'm6-p2-sr', position: [2.7, 0.7, -36.55], size: [1.4, 0.8, 0.3], theme: 'warning' },
+      // Pocket deck 1 (checkpoint)
+      { id: 'm6-k1', position: [0, 0, -49.3], size: [6.8, 0.6, 11], theme: 'cyber', rails: 'both' },
+      { id: 'm6-k1-nl', position: [-2.7, 0.7, -54.65], size: [1.4, 0.8, 0.3], theme: 'warning' },
+      { id: 'm6-k1-nr', position: [2.7, 0.7, -54.65], size: [1.4, 0.8, 0.3], theme: 'warning' },
+      { id: 'm6-w3', position: [0, 0, -59.8], size: [4, 0.6, 10], theme: 'cyber', rails: 'right' },
+      // Sweeper 3: 7.0 m bar, omega 2.0
+      { id: 'm6-p3', position: [0, 0, -68.9], size: [7.6, 0.6, 8.2], theme: 'warning' },
+      { id: 'm6-p3-sl', position: [-2.9, 0.7, -64.95], size: [1.8, 0.8, 0.3], theme: 'warning' },
+      { id: 'm6-p3-sr', position: [2.9, 0.7, -64.95], size: [1.8, 0.8, 0.3], theme: 'warning' },
+      { id: 'm6-p3-nl', position: [-2.9, 0.7, -72.85], size: [1.8, 0.8, 0.3], theme: 'warning' },
+      { id: 'm6-p3-nr', position: [2.9, 0.7, -72.85], size: [1.8, 0.8, 0.3], theme: 'warning' },
+      { id: 'm6-w4', position: [0, 0, -77.0], size: [4, 0.6, 8], theme: 'cyber', rails: 'left' },
+      // Sweeper 4: 7.0 m bar, omega -2.3
+      { id: 'm6-p4', position: [0, 0, -85.1], size: [7.6, 0.6, 8.2], theme: 'warning' },
+      { id: 'm6-p4-sl', position: [-2.9, 0.7, -81.15], size: [1.8, 0.8, 0.3], theme: 'warning' },
+      { id: 'm6-p4-sr', position: [2.9, 0.7, -81.15], size: [1.8, 0.8, 0.3], theme: 'warning' },
+      // Pocket deck 2 (checkpoint)
+      { id: 'm6-k2', position: [0, 0, -94.7], size: [7.6, 0.6, 11], theme: 'cyber', rails: 'both' },
+      { id: 'm6-k2-nl', position: [-2.9, 0.7, -100.05], size: [1.8, 0.8, 0.3], theme: 'warning' },
+      { id: 'm6-k2-nr', position: [2.9, 0.7, -100.05], size: [1.8, 0.8, 0.3], theme: 'warning' },
+      { id: 'm6-w5', position: [0, 0, -105.2], size: [4, 0.6, 10], theme: 'cyber', rails: 'left' },
+      // Sweeper 5: 7.6 m bar, omega 2.6
+      { id: 'm6-p5', position: [0, 0, -114.6], size: [8.2, 0.6, 8.8], theme: 'warning' },
+      { id: 'm6-p5-sl', position: [-3.05, 0.7, -110.35], size: [2.1, 0.8, 0.3], theme: 'warning' },
+      { id: 'm6-p5-sr', position: [3.05, 0.7, -110.35], size: [2.1, 0.8, 0.3], theme: 'warning' },
+      // Goal deck
+      { id: 'm6-b9', position: [0, 0, -125.5], size: [8.2, 0.6, 13], theme: 'gold', rails: 'both' },
+      { id: 'm6-b9-end', position: [0, 0.7, -131.85], size: [7.6, 0.8, 0.3], theme: 'warning' },
+      // Set-dressing: neon pivot pylons beside each sweeper (no collider)
+      { id: 'm6-pyl1l', position: [-4.3, 0.9, -24.7], size: [0.5, 3.0, 0.5], theme: 'cyber', decorative: true },
+      { id: 'm6-pyl1r', position: [4.3, 0.9, -24.7], size: [0.5, 3.0, 0.5], theme: 'cyber', decorative: true },
+      { id: 'm6-pyl2l', position: [-4.3, 0.9, -40.1], size: [0.5, 3.0, 0.5], theme: 'cyber', decorative: true },
+      { id: 'm6-pyl2r', position: [4.3, 0.9, -40.1], size: [0.5, 3.0, 0.5], theme: 'cyber', decorative: true },
+      { id: 'm6-pyl3l', position: [-4.7, 0.9, -68.9], size: [0.5, 3.0, 0.5], theme: 'cyber', decorative: true },
+      { id: 'm6-pyl3r', position: [4.7, 0.9, -68.9], size: [0.5, 3.0, 0.5], theme: 'cyber', decorative: true },
+      { id: 'm6-pyl4l', position: [-4.7, 0.9, -85.1], size: [0.5, 3.0, 0.5], theme: 'cyber', decorative: true },
+      { id: 'm6-pyl4r', position: [4.7, 0.9, -85.1], size: [0.5, 3.0, 0.5], theme: 'cyber', decorative: true },
+      { id: 'm6-pyl5l', position: [-5.0, 0.9, -114.6], size: [0.5, 3.0, 0.5], theme: 'cyber', decorative: true },
+      { id: 'm6-pyl5r', position: [5.0, 0.9, -114.6], size: [0.5, 3.0, 0.5], theme: 'cyber', decorative: true },
     ],
     rotatingHazards: [
       {
         id: 'm6-rh1',
-        position: [0, 0.7, -15],
-        size: [6.5, 0.55, 0.55],
-        angularVelocity: [0, 2.2, 0],
+        position: [0, 0.7, -24.7],
+        size: [6.2, 0.55, 0.55],
+        angularVelocity: [0, 1.4, 0],
         type: 'hazard',
         color: '#f43f5e',
       },
       {
         id: 'm6-rh2',
-        position: [0, 0.7, -22],
-        size: [6.5, 0.55, 0.55],
-        angularVelocity: [0, -2.4, 0],
+        position: [0, 0.7, -40.1],
+        size: [6.2, 0.55, 0.55],
+        angularVelocity: [0, -1.7, 0],
         type: 'hazard',
         color: '#f43f5e',
       },
       {
         id: 'm6-rh3',
-        position: [0, 0.7, -40],
+        position: [0, 0.7, -68.9],
         size: [7.0, 0.55, 0.55],
-        angularVelocity: [0, 2.8, 0],
+        angularVelocity: [0, 2.0, 0],
+        type: 'hazard',
+        color: '#f43f5e',
+      },
+      {
+        id: 'm6-rh4',
+        position: [0, 0.7, -85.1],
+        size: [7.0, 0.55, 0.55],
+        angularVelocity: [0, -2.3, 0],
+        type: 'hazard',
+        color: '#f43f5e',
+      },
+      {
+        id: 'm6-rh5',
+        position: [0, 0.7, -114.6],
+        size: [7.6, 0.55, 0.55],
+        angularVelocity: [0, 2.6, 0],
         type: 'hazard',
         color: '#f43f5e',
       },
     ],
-    bumpers: [
-      { id: 'm6-bmp1', position: [-2.0, 0.75, -33.5], radius: 0.7 },
-      { id: 'm6-bmp2', position: [2.0, 0.75, -33.5], radius: 0.7 },
+    killZones: [
+      { id: 'm6-lava', position: [0, -5, -66], size: [30, 2, 150], visual: 'lava' },
     ],
     gems: [
-      { id: 'm6-g1', position: [0, 0.9, -18.5], timeBonusMs: 1500 },
-      { id: 'm6-g2', position: [0, 0.9, -31], timeBonusMs: 1500 },
-      { id: 'm6-g3', position: [0, 0.9, -44], timeBonusMs: 1500 },
+      { id: 'm6-g1', position: [1.8, 0.9, -24.7], timeBonusMs: 1000 },
+      { id: 'm6-g2', position: [2.4, 0.9, -45.5], timeBonusMs: 1000 },
+      { id: 'm6-g3', position: [1.8, 0.9, -68.9], timeBonusMs: 1500 },
+      { id: 'm6-g4', position: [1.8, 0.9, -114.6], timeBonusMs: 2000 },
     ],
   },
 
