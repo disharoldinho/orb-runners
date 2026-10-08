@@ -21,6 +21,8 @@ export interface GhostReplayData {
    * used the displayed run timer and are still played back against it.
    */
   clock?: 'run';
+  /** Layout version of the stage this ghost was recorded on (missing = 1). */
+  layoutVersion?: number;
 }
 
 export interface CheckpointSplitBanner {
@@ -35,6 +37,23 @@ export interface CheckpointSplitBanner {
 
 export interface LevelProgress {
   bestTimeMs: number | null;
+  medal: MedalTier;
+  clears: number;
+  bestCheckpointSplitsMs?: Record<string, number>;
+  /** Layout version of the stage these records were set on (missing = 1). */
+  layoutVersion?: number;
+  /**
+   * Records from an earlier layout of the stage, kept (not compared or shown as the PB)
+   * so cosmetic unlocks earned on it are never revoked. See store/layoutVersion.ts.
+   */
+  legacy?: LegacyLevelProgress;
+}
+
+export interface LegacyLevelProgress {
+  /** Newest layout version the records below were set on. */
+  layoutVersion: number;
+  bestTimeMs: number | null;
+  /** Best medal across all earlier layouts. */
   medal: MedalTier;
   clears: number;
   bestCheckpointSplitsMs?: Record<string, number>;
@@ -93,4 +112,10 @@ export interface LivePhysicsState {
   /** Current emote popped by local player */
   localEmote: string | null;
   localEmoteTimestamp: number;
+  /**
+   * Simulated seconds since this attempt's physics world started stepping (the same clock
+   * moving platforms, spinners and the moving goal run on). Used by tooling, e.g. the
+   * campaign autopilot, to time obstacle phases.
+   */
+  physicsTimeS: number;
 }

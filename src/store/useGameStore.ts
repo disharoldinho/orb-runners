@@ -17,6 +17,13 @@ import { SUMMIT_LEVEL_ID, SUMMIT_MAP } from '../levels/summitMap';
 import { LevelData } from '../types/level';
 import { soundFX } from '../components/ui/SoundManager';
 import {
+  countedMedal,
+  layoutVersionOf,
+  MEDAL_RANK,
+  migrateProgress,
+  partitionGhosts,
+} from './layoutVersion';
+import {
   DEFAULT_GRAPHICS_QUALITY,
   GRAPHICS_QUALITY_ORDER,
   GraphicsQuality,
@@ -26,6 +33,8 @@ import {
 const STORAGE_KEY_AVATAR = 'orb_runners_avatar_v1';
 const STORAGE_KEY_PROGRESS = 'orb_runners_progress_v1';
 const STORAGE_KEY_GHOSTS = 'orb_runners_ghosts_v1';
+/** Ghosts recorded on an earlier layout of a stage (see store/layoutVersion.ts). */
+const STORAGE_KEY_GHOST_ARCHIVE = 'orb_runners_ghost_archive_v1';
 const STORAGE_KEY_SUMMIT_PEAK = 'orb_runners_summit_peak_v1';
 const STORAGE_KEY_GRAPHICS = 'orb_runners_graphics_v1';
 const STORAGE_KEY_MUTE = 'orb_runners_mute_v1';
@@ -58,11 +67,19 @@ function loadSavedAvatar(): AvatarConfig {
   return DEFAULT_AVATAR;
 }
 
+/** Current layout version of a stored level id; undefined for ids no longer in the game. */
+function storedLevelVersion(levelId: number): number | undefined {
+  if (levelId === SUMMIT_LEVEL_ID) return layoutVersionOf(SUMMIT_MAP);
+  const map = MAPS.find((m) => m.id === levelId);
+  return map ? layoutVersionOf(map) : undefined;
+}
+
 function loadSavedProgress(): Record<number, LevelProgress> {
   try {
     const raw = localStorage.getItem(STORAGE_KEY_PROGRESS);
     if (raw) {
-      return JSON.parse(raw);
+      // Records set on an earlier layout of a rebuilt stage become legacy records.
+      return migrateProgress(JSON.parse(raw), storedLevelVersion).progress;
     }
   } catch {
     // ignore storage errors
@@ -70,11 +87,35 @@ function loadSavedProgress(): Record<number, LevelProgress> {
   return {};
 }
 
+/**
+ * Ghosts recorded on an earlier layout: archived under their own key (never deleted) and
+ * not raced. They also stay in the main ghost key until a new record replaces them, so a
+ * failed archive write can't lose them.
+ */
+let staleGhosts: Record<number, GhostReplayData> = {};
+
 function loadSavedGhosts(): Record<number, GhostReplayData> {
   try {
     const raw = localStorage.getItem(STORAGE_KEY_GHOSTS);
     if (raw) {
-      return JSON.parse(raw);
+      const all: Record<number, GhostReplayData> = JSON.parse(raw);
+      let archive: Record<string, GhostReplayData> = {};
+      try {
+        archive = JSON.parse(localStorage.getItem(STORAGE_KEY_GHOST_ARCHIVE) || '{}') ?? {};
+      } catch {
+        archive = {};
+      }
+      const split = partitionGhosts(all, archive, storedLevelVersion);
+      staleGhosts = {};
+      for (const id of split.archived) staleGhosts[id] = all[id];
+      if (split.archived.length) {
+        try {
+          localStorage.setItem(STORAGE_KEY_GHOST_ARCHIVE, JSON.stringify(split.archive));
+        } catch {
+          // ignore storage errors
+        }
+      }
+      return split.ghosts;
     }
   } catch {
     // ignore storage errors
@@ -135,6 +176,7 @@ export const livePhysics: LivePhysicsState = {
   peakAltitudeM: loadSavedSummitPeak(),
   localEmote: null,
   localEmoteTimestamp: 0,
+  physicsTimeS: 0,
 };
 
 /** Mutable recording buffer for current active run's ghost frames */
@@ -221,14 +263,6 @@ interface GameStore {
   triggerEmote: (emote: string) => void;
   recordPeakAltitude: (altM: number) => void;
 }
-
-const MEDAL_RANK: Record<MedalTier, number> = {
-  none: 0,
-  bronze: 1,
-  silver: 2,
-  gold: 3,
-  author: 4,
-};
 
 const initialSoundMuted = loadSavedMute();
 soundFX.muted = initialSoundMuted;
@@ -533,6 +567,8 @@ export const useGameStore = create<GameStore>((set, get) => ({
         medal: bestMedal,
         clears: (prev?.clears ?? 0) + 1,
         bestCheckpointSplitsMs,
+        layoutVersion: layoutVersionOf(map),
+        ...(prev?.legacy ? { legacy: prev.legacy } : {}),
       },
     };
 
@@ -559,10 +595,17 @@ export const useGameStore = create<GameStore>((set, get) => ({
           frames: finalFrames,
           checkpointSplitsMs: { ...currentRunSplitsMs },
           clock: 'run',
+          layoutVersion: layoutVersionOf(map),
         },
       };
+      // The new record replaces this stage's old-layout ghost in the main key (it is in the
+      // archive); other stages' old-layout ghosts stay until they are replaced too.
+      delete staleGhosts[currentLevelId];
       try {
-        localStorage.setItem(STORAGE_KEY_GHOSTS, JSON.stringify(updatedGhosts));
+        localStorage.setItem(
+          STORAGE_KEY_GHOSTS,
+          JSON.stringify({ ...staleGhosts, ...updatedGhosts }),
+        );
       } catch {
         // ignore storage errors
       }
@@ -635,12 +678,12 @@ export const useGameStore = create<GameStore>((set, get) => ({
 
   getTotalMedalsCount: () => {
     const { progress } = get();
-    return Object.entries(progress).filter(([id, p]) => Number(id) !== SUMMIT_LEVEL_ID && p.medal !== 'none').length;
+    return Object.entries(progress).filter(([id, p]) => Number(id) !== SUMMIT_LEVEL_ID && countedMedal(p) !== 'none').length;
   },
 
   getAuthorMedalsCount: () => {
     const { progress } = get();
-    return Object.entries(progress).filter(([id, p]) => Number(id) !== SUMMIT_LEVEL_ID && p.medal === 'author').length;
+    return Object.entries(progress).filter(([id, p]) => Number(id) !== SUMMIT_LEVEL_ID && countedMedal(p) === 'author').length;
   },
 
   openSummitLobbyModal: () => {

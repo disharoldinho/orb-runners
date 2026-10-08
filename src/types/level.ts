@@ -155,6 +155,11 @@ export interface JumpPadDef {
 
 export interface LevelData {
   id: number;
+  /**
+   * Bump when a stage is rebuilt so old PBs/ghosts (set on a different course) are kept as
+   * legacy records instead of being compared against the new layout. Missing = 1.
+   */
+  layoutVersion?: number;
   name: string;
   subtitle: string;
   difficulty: 1 | 2 | 3 | 4 | 5;
