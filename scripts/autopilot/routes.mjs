@@ -185,4 +185,20 @@ export const ROUTES = {
       { p: [0, -89], v: 3 },
     ],
   },
+  5: {
+    // Shortcut line: up the spur to the switch (and gem), back to the hub, boosted bridge.
+    points: [
+      { p: [0, 0], v: 10 },
+      { p: [0, -14], v: 6 },
+      { p: [-2.5, -18.6], v: 5 },
+      { p: [-10.8, -18.7], v: 3 },
+      { p: [-11.4, -19.2], v: 3 },
+      { p: [-10.5, -19.6], v: 4 },
+      { p: [-3, -20], v: 5 },
+      { p: [0, -24], v: 8 },
+      { p: [0, -56], v: 12 },
+      { p: [0, -78], v: 10 },
+      { p: [0, -81], v: 4 },
+    ],
+  },
 };

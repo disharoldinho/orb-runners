@@ -386,10 +386,11 @@ export const MAPS: LevelData[] = [
   },
 
   // ============================================================================
-  // MAP 5: SWITCHBACK SUMMIT (Difficulty 3 — Rebuilt & Polished)
+  // MAP 5: SWITCHBACK SUMMIT (Difficulty 3)
   // ============================================================================
   {
     id: 5,
+    layoutVersion: 2,
     name: 'Switchback Summit',
     subtitle: 'Hit the emerald switch for the turbo shortcut bridge, or take the right switchback!',
     difficulty: 3,
@@ -397,7 +398,11 @@ export const MAPS: LevelData[] = [
     accentColor: '#10b981',
     spawnPosition: [0, 1.0, 0],
     killPlaneY: -15,
-    goalPosition: [0, 0.3, -45.5],
+    // A real choice at the junction hub: detour 8 m up the left spur to hit the switch and
+    // raise the 34 m boosted shortcut, or take the long railed switchback on the right
+    // (bumpers on the inside line, its own gem). Every open edge of both hubs is capped, so
+    // the only ways on are the spur, the bridge mouth and the switchback arms.
+    goalPosition: [0, 0.3, -78],
     medalTimesMs: {
       author: 8200,
       gold: 11000,
@@ -405,53 +410,67 @@ export const MAPS: LevelData[] = [
       bronze: 32000,
     },
     checkpoints: [
-      { id: 'm5-cp1', order: 1, position: [0, 0.3, -6.0] },
-      { id: 'm5-cp2', order: 2, position: [0, 0.3, -39.8] },
+      { id: 'm5-cp1', order: 1, position: [0, 0.3, -16.5] },
+      { id: 'm5-cp2', order: 2, position: [0, 0.3, -67] },
     ],
     blocks: [
-      // Start straightaway
-      { id: 'm5-b1-start', position: [0, 0, -3.5], size: [7, 0.6, 9], theme: 'meadow', rails: 'both' },
-      // Open 3-way junction hub (no side rails so left alcove & right detour are completely open)
-      { id: 'm5-b1-hub', position: [0, 0, -10.5], size: [7.5, 0.6, 6], theme: 'meadow', rails: 'none' },
-      // Left alcove holding the emerald bridge switch
-      { id: 'm5-b1-alcove', position: [-6.0, 0, -10.5], size: [5.2, 0.6, 5.5], theme: 'warning' },
-      // Right switchback entrance arm
-      { id: 'm5-b2', position: [6.0, 0, -10.5], size: [5.2, 0.6, 5.5], theme: 'meadow' },
-      // Right switchback main bypass boulevard (outer rail on right for safety)
-      { id: 'm5-b3', position: [9.8, 0, -23.5], size: [5.0, 0.6, 26.5], theme: 'meadow', rails: 'right' },
-      // Right switchback return arm
-      { id: 'm5-b4', position: [6.0, 0, -36.5], size: [5.2, 0.6, 5.5], theme: 'meadow' },
-      // Rejoin junction hub (rail on left only, open on right for returning detour players)
-      { id: 'm5-b5-hub', position: [0, 0, -36.5], size: [7.5, 0.6, 6], theme: 'gold', rails: 'left' },
-      // Final goal runway
-      { id: 'm5-b5-goal', position: [0, 0, -43.5], size: [7.5, 0.6, 8.5], theme: 'gold', rails: 'both' },
+      { id: 'm5-b1', position: [0, 0, -7], size: [7, 0.6, 16], theme: 'meadow', rails: 'both' },
+      { id: 'm5-cap0l', position: [-3.75, 0.7, -15.15], size: [0.5, 0.8, 0.3], theme: 'warning' },
+      { id: 'm5-cap0r', position: [3.75, 0.7, -15.15], size: [0.5, 0.8, 0.3], theme: 'warning' },
+      // Junction hub
+      { id: 'm5-hub1', position: [0, 0, -19], size: [8, 0.6, 8], theme: 'meadow' },
+      { id: 'm5-hub1-wl1', position: [-3.85, 0.7, -16], size: [0.3, 0.8, 2], theme: 'warning' },
+      { id: 'm5-hub1-wl2', position: [-3.85, 0.7, -22], size: [0.3, 0.8, 2], theme: 'warning' },
+      { id: 'm5-hub1-wr1', position: [3.85, 0.7, -16], size: [0.3, 0.8, 2], theme: 'warning' },
+      { id: 'm5-hub1-wr2', position: [3.85, 0.7, -22], size: [0.3, 0.8, 2], theme: 'warning' },
+      { id: 'm5-hub1-nl', position: [-3, 0.7, -22.85], size: [2, 0.8, 0.3], theme: 'warning' },
+      { id: 'm5-hub1-nr', position: [3, 0.7, -22.85], size: [2, 0.8, 0.3], theme: 'warning' },
+      // Left spur to the switch (dead end, capped)
+      { id: 'm5-spur', position: [-9, 0, -19], size: [4, 0.6, 10], rotation: [0, Math.PI / 2, 0], theme: 'warning', rails: 'both' },
+      { id: 'm5-spur-end', position: [-13.85, 0.7, -19], size: [0.3, 0.8, 4], theme: 'warning' },
+      // Right switchback: arm -> long boulevard -> arm
+      { id: 'm5-arm1', position: [6.5, 0, -19], size: [4, 0.6, 5], rotation: [0, Math.PI / 2, 0], theme: 'meadow', rails: 'both' },
+      { id: 'm5-sb1', position: [11.5, 0, -19], size: [5, 0.6, 8], theme: 'meadow', rails: 'right' },
+      { id: 'm5-sb1-cap', position: [11.5, 0.7, -15.15], size: [5, 0.8, 0.3], theme: 'warning' },
+      { id: 'm5-sb2', position: [11.5, 0, -40], size: [5, 0.6, 34], theme: 'meadow', rails: 'both' },
+      { id: 'm5-sb3', position: [11.5, 0, -61], size: [5, 0.6, 8], theme: 'meadow', rails: 'right' },
+      { id: 'm5-sb3-cap', position: [11.5, 0.7, -64.85], size: [5, 0.8, 0.3], theme: 'warning' },
+      { id: 'm5-arm2', position: [6.5, 0, -61], size: [4, 0.6, 5], rotation: [0, Math.PI / 2, 0], theme: 'meadow', rails: 'both' },
+      // Rejoin hub
+      { id: 'm5-hub2', position: [0, 0, -61], size: [8, 0.6, 8], theme: 'gold', rails: 'left' },
+      { id: 'm5-hub2-sl', position: [-3, 0.7, -57.15], size: [2, 0.8, 0.3], theme: 'warning' },
+      { id: 'm5-hub2-sr', position: [3, 0.7, -57.15], size: [2, 0.8, 0.3], theme: 'warning' },
+      { id: 'm5-hub2-wr1', position: [3.85, 0.7, -58], size: [0.3, 0.8, 2], theme: 'warning' },
+      { id: 'm5-hub2-wr2', position: [3.85, 0.7, -64], size: [0.3, 0.8, 2], theme: 'warning' },
+      // Goal runway
+      { id: 'm5-b8', position: [0, 0, -73], size: [8, 0.6, 16], theme: 'gold', rails: 'both' },
+      // Set-dressing: crystal markers at the junction (no collider)
+      { id: 'm5-crys1', position: [-5.2, 0.6, -13.6], size: [0.6, 2.2, 0.6], theme: 'crystal', decorative: true },
+      { id: 'm5-crys2', position: [5.2, 0.6, -13.6], size: [0.6, 2.2, 0.6], theme: 'crystal', decorative: true },
+      { id: 'm5-crys3', position: [5.2, 0.6, -55.6], size: [0.6, 2.2, 0.6], theme: 'crystal', decorative: true },
+      { id: 'm5-crys4', position: [-5.2, 0.6, -55.6], size: [0.6, 2.2, 0.6], theme: 'crystal', decorative: true },
     ],
     switchBridges: [
       {
         id: 'm5-sw1',
-        switchPosition: [-6.0, 0.3, -10.5],
-        bridgePosition: [0, 0, -23.5],
-        bridgeSize: [4.2, 0.6, 20.0],
+        switchPosition: [-12, 0.3, -19],
+        bridgePosition: [0, 0, -40],
+        bridgeSize: [4, 0.6, 34],
         color: '#10b981',
       },
     ],
     boostPads: [
-      {
-        id: 'm5-bp1',
-        position: [0, 0.3, -18.5],
-        size: [2.8, 4.5],
-        force: 15,
-        color: '#10b981',
-      },
+      { id: 'm5-bp1', position: [0, 0.3, -28], size: [2.8, 4.5], force: 15, color: '#10b981' },
     ],
     bumpers: [
-      { id: 'm5-bmp1', position: [9.8, 0.75, -19.5], radius: 0.68 },
-      { id: 'm5-bmp2', position: [9.8, 0.75, -27.5], radius: 0.68 },
+      { id: 'm5-bmp1', position: [10.4, 0.75, -30], radius: 0.7 },
+      { id: 'm5-bmp2', position: [12.6, 0.75, -40], radius: 0.7 },
+      { id: 'm5-bmp3', position: [10.4, 0.75, -50], radius: 0.7 },
     ],
     gems: [
-      { id: 'm5-g1', position: [-6.0, 0.9, -10.5], timeBonusMs: 1500 },
-      { id: 'm5-g2', position: [0, 0.9, -23.5], timeBonusMs: 1500 },
-      { id: 'm5-g3', position: [9.8, 0.9, -23.5], timeBonusMs: 1500 },
+      { id: 'm5-g1', position: [-10.5, 0.9, -19], timeBonusMs: 1000 },
+      { id: 'm5-g2', position: [0, 0.9, -48], timeBonusMs: 1000 },
+      { id: 'm5-g3', position: [11.5, 0.9, -40], timeBonusMs: 1500 },
     ],
   },
 
