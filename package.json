@@ -13,6 +13,7 @@
     "summit:waypoints": "node scripts/genSummitWaypoints.mjs",
     "summit:verify": "node scripts/verifySummit.mjs",
     "maps:check": "node scripts/checkMapVisuals.mjs",
+    "server:test": "node scripts/testSummitServer.mjs",
     "typecheck": "tsc --noEmit",
     "lint": "eslint src server",
     "format": "prettier --write \"src/**/*.{ts,tsx,css}\" \"server/**/*.mjs\" \"scripts/**/*.mjs\"",

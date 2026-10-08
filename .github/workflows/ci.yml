@@ -40,6 +40,9 @@ jobs:
       - name: Map visual check
         run: npm run maps:check
 
+      - name: Summit server tests
+        run: npm run server:test
+
       - name: Summit geometry check
         run: npm run summit:verify
 

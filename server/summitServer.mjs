@@ -25,7 +25,7 @@ function buildSummitWaypoints() {
   } catch (err) {
     console.warn(
       `[summit] could not load server/summitWaypoints.json (${err.message}); ` +
-        'run `npm run summit:waypoints`. Bots will idle at base camp.'
+        'run `npm run summit:waypoints`. Bots will idle at base camp.',
     );
     return [
       [0, 1.0, 0],
@@ -149,49 +149,6 @@ function generateLobbyCode() {
   return code;
 }
 
-/**
- * Active Lobby Rooms Map
- * key: lobbyCode (e.g. 'PUBLIC' or 'ORB777')
- */
-const rooms = new Map();
-
-function createRoom({ code, name, password = '', isPublic = false, includeBots = true }) {
-  const room = {
-    code,
-    name: name || (isPublic ? 'Global Summit Server' : `Summit Room ${code}`),
-    password: String(password || '').trim(),
-    isPublic,
-    includeBots: Boolean(includeBots),
-    clients: new Map(), // ws -> climberState
-    createdAt: Date.now(),
-  };
-  rooms.set(code, room);
-  return room;
-}
-
-/**
- * Removes a socket from a room and deletes the room if that left a private room empty.
- * `keepCode` protects the room the socket is about to (re)join, so re-joining your own
- * room while alone in it doesn't delete it first.
- */
-function leaveRoom(ws, code, keepCode = null) {
-  const room = code ? rooms.get(code) : null;
-  if (!room) return;
-  room.clients.delete(ws);
-  if (!room.isPublic && room.clients.size === 0 && code !== keepCode) {
-    rooms.delete(code);
-  }
-}
-
-// Initialize the default Public room
-createRoom({
-  code: 'PUBLIC',
-  name: 'Global Summit Server',
-  password: '',
-  isPublic: true,
-  includeBots: true,
-});
-
 /** Position along the route for a bot, looping climb -> summit rest -> restart. */
 function locateOnRoute(dist) {
   let lo = 0;
@@ -219,7 +176,11 @@ function sampleBotStates(elapsedSec) {
 
     // Gentle rolling bob (waypoints are dense, so no big hops that would clip rails/ceilings)
     const bobY = Math.abs(Math.sin(elapsedSec * 2.2 + idx)) * 0.25;
-    const x = p0[0] + (p1[0] - p0[0]) * frac + Math.sin(elapsedSec * 1.7 + idx) * 0.45 + bot.laneOffset * 0.4;
+    const x =
+      p0[0] +
+      (p1[0] - p0[0]) * frac +
+      Math.sin(elapsedSec * 1.7 + idx) * 0.45 +
+      bot.laneOffset * 0.4;
     const y = p0[1] + (p1[1] - p0[1]) * frac + bobY;
     const z = p0[2] + (p1[2] - p0[2]) * frac + Math.cos(elapsedSec * 1.5 + idx) * 0.45;
 
@@ -230,7 +191,8 @@ function sampleBotStates(elapsedSec) {
 
     // Periodic celebratory emotes
     const emoteCycle = Math.floor((elapsedSec + idx * 7) % 19);
-    const emote = emoteCycle < 2 ? EMOTE_POOL[(idx + Math.floor(elapsedSec / 19)) % EMOTE_POOL.length] : null;
+    const emote =
+      emoteCycle < 2 ? EMOTE_POOL[(idx + Math.floor(elapsedSec / 19)) % EMOTE_POOL.length] : null;
 
     return {
       id: bot.id,
@@ -259,72 +221,145 @@ const MIME_TYPES = {
   '.woff2': 'font/woff2',
 };
 
-const httpServer = http.createServer((req, res) => {
-  const reqUrl = (req.url || '/').split('?')[0];
+const cleanCode = (v) =>
+  String(v ?? '')
+    .toUpperCase()
+    .replace(/[^A-Z0-9-]/g, '')
+    .slice(0, 10);
 
-  // Live public server status endpoint
-  if (reqUrl === '/api/lobbies') {
-    const summary = Array.from(rooms.values()).map((r) => ({
-      code: r.isPublic ? r.code : `${r.code.slice(0, 2)}***`,
-      name: r.name,
-      isPublic: r.isPublic,
-      hasPassword: Boolean(r.password),
-      playersOnline: r.clients.size,
-      includeBots: r.includeBots,
-    }));
-    res.writeHead(200, { 'Content-Type': 'application/json' });
-    res.end(JSON.stringify({ status: 'online', rooms: summary }));
-    return;
+/**
+ * Creates the Summit HTTP + WebSocket server (not listening yet), so tests can run it on an
+ * ephemeral port and close it again. `npm run server` / `npm start` run it via the CLI block
+ * at the bottom of this file.
+ *
+ * Lobby rules:
+ *  - one room per socket; joining/creating another room leaves the old one once the target
+ *    is known, and an empty private room is deleted the moment its last climber leaves
+ *    (socket close, explicit `leave`, switching lobby, or a failed switch);
+ *  - re-joining your own room while alone in it keeps the room;
+ *  - creating a taken code gets a fresh random code (never someone else's room);
+ *  - PUBLIC always exists.
+ */
+export function createSummitServer({ distDir = DIST_DIR, tickMs = 50, log = console } = {}) {
+  /** Active rooms by lobby code ('PUBLIC' or a private code). */
+  const rooms = new Map();
+
+  function createRoom({ code, name, password = '', isPublic = false, includeBots = true }) {
+    const room = {
+      code,
+      name: name || (isPublic ? 'Global Summit Server' : `Summit Room ${code}`),
+      password: String(password || '').trim(),
+      isPublic,
+      includeBots: Boolean(includeBots),
+      clients: new Map(), // ws -> climberState
+      createdAt: Date.now(),
+    };
+    rooms.set(code, room);
+    return room;
   }
 
-  // Serve built production frontend from dist/ if available
-  if (fs.existsSync(DIST_DIR)) {
-    const safePath = path.normalize(reqUrl === '/' ? '/index.html' : reqUrl).replace(/^(\.\.[/\\])+/, '');
-    let filePath = path.join(DIST_DIR, safePath);
-    if (!fs.existsSync(filePath) || fs.statSync(filePath).isDirectory()) {
-      filePath = path.join(DIST_DIR, 'index.html');
+  createRoom({ code: 'PUBLIC', name: 'Global Summit Server', isPublic: true, includeBots: true });
+
+  /**
+   * Removes a socket from a room and deletes the room if that left a private room empty.
+   * `keepCode` protects the room the socket is about to (re)join, so re-joining your own
+   * room while alone in it doesn't delete it first.
+   */
+  function leaveRoom(ws, code, keepCode = null) {
+    const room = code ? rooms.get(code) : null;
+    if (!room) return;
+    room.clients.delete(ws);
+    if (!room.isPublic && room.clients.size === 0 && code !== keepCode) {
+      rooms.delete(code);
     }
-    if (fs.existsSync(filePath)) {
-      const ext = path.extname(filePath).toLowerCase();
-      res.writeHead(200, { 'Content-Type': MIME_TYPES[ext] || 'application/octet-stream' });
-      fs.createReadStream(filePath).pipe(res);
+  }
+
+  const httpServer = http.createServer((req, res) => {
+    const reqUrl = (req.url || '/').split('?')[0];
+
+    // Live public server status endpoint
+    if (reqUrl === '/api/lobbies') {
+      const summary = Array.from(rooms.values()).map((r) => ({
+        code: r.isPublic ? r.code : `${r.code.slice(0, 2)}***`,
+        name: r.name,
+        isPublic: r.isPublic,
+        hasPassword: Boolean(r.password),
+        playersOnline: r.clients.size,
+        includeBots: r.includeBots,
+      }));
+      res.writeHead(200, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ status: 'online', rooms: summary }));
       return;
     }
-  }
 
-  res.writeHead(200, { 'Content-Type': 'text/plain; charset=utf-8' });
-  res.end('Orb Runners Summit Multiplayer Server is running.');
-});
+    // Serve built production frontend from dist/ if available
+    if (distDir && fs.existsSync(distDir)) {
+      const safePath = path
+        .normalize(reqUrl === '/' ? '/index.html' : reqUrl)
+        .replace(/^(\.\.[/\\])+/, '');
+      let filePath = path.join(distDir, safePath);
+      if (!fs.existsSync(filePath) || fs.statSync(filePath).isDirectory()) {
+        filePath = path.join(distDir, 'index.html');
+      }
+      if (fs.existsSync(filePath)) {
+        const ext = path.extname(filePath).toLowerCase();
+        res.writeHead(200, { 'Content-Type': MIME_TYPES[ext] || 'application/octet-stream' });
+        fs.createReadStream(filePath).pipe(res);
+        return;
+      }
+    }
 
-const wss = new WebSocketServer({ server: httpServer });
+    res.writeHead(200, { 'Content-Type': 'text/plain; charset=utf-8' });
+    res.end('Orb Runners Summit Multiplayer Server is running.');
+  });
 
-wss.on('connection', (ws) => {
-  let currentRoomCode = null;
-  const clientId = `climber-${Math.random().toString(36).slice(2, 9)}`;
+  const wss = new WebSocketServer({ server: httpServer });
 
-  ws.on('message', (raw) => {
-    try {
-      const msg = JSON.parse(String(raw));
+  wss.on('connection', (ws) => {
+    let currentRoomCode = null;
+    const clientId = `climber-${Math.random().toString(36).slice(2, 9)}`;
 
+    const send = (obj) => {
+      if (ws.readyState === 1) ws.send(JSON.stringify(obj));
+    };
+    /** Leaves the current room (deleting it if that empties a private room). */
+    const leaveCurrent = (keepCode = null) => {
+      leaveRoom(ws, currentRoomCode, keepCode);
+      currentRoomCode = null;
+    };
+    // A failed switch (unknown code / wrong password) leaves the previous room, as in #15:
+    // the browser client opens a fresh socket per launch and returns to the lobby screen on
+    // any lobby-error, so nothing should keep it (or an empty room) around.
+    const lobbyError = (message, code) => {
+      leaveCurrent();
+      send({ type: 'lobby-error', message, code });
+    };
+
+    ws.on('message', (raw) => {
+      let msg;
+      try {
+        msg = JSON.parse(String(raw));
+      } catch {
+        return; // ignore malformed messages
+      }
+      if (!msg || typeof msg !== 'object') return;
+      try {
+        handleMessage(msg);
+      } catch (err) {
+        // A throwing 'message' listener would otherwise take the whole process down.
+        log.warn(`[Orb Runners Summit Server] Bad message from ${clientId}: ${err.message}`);
+      }
+    });
+
+    function handleMessage(msg) {
       if (msg.type === 'join-or-create') {
-        // Switching rooms: leave the previous one (deleting it if that leaves a private room
-        // empty) once the target is known, so an empty private room is never leaked.
-        const previousRoomCode = currentRoomCode;
-        const leavePrevious = (keepCode = null) => {
-          leaveRoom(ws, previousRoomCode, keepCode);
-          currentRoomCode = null;
-        };
-
-        const mode = msg.mode || 'public';
-        let targetRoom = null;
+        const mode = msg.mode === 'create' || msg.mode === 'join' ? msg.mode : 'public';
+        let targetRoom;
 
         if (mode === 'public') {
           targetRoom = rooms.get('PUBLIC');
         } else if (mode === 'create') {
-          let code = String(msg.lobbyCode || '')
-            .toUpperCase()
-            .replace(/[^A-Z0-9-]/g, '')
-            .slice(0, 10);
+          let code = cleanCode(msg.lobbyCode);
           if (!code || code === 'PUBLIC' || rooms.has(code)) {
             do {
               code = generateLobbyCode();
@@ -337,42 +372,41 @@ wss.on('connection', (ws) => {
             isPublic: false,
             includeBots: msg.includeBots !== false,
           });
-        } else if (mode === 'join') {
-          const code = String(msg.lobbyCode || '')
-            .toUpperCase()
-            .trim();
-          const candidate = rooms.get(code);
+        } else {
+          const code = cleanCode(String(msg.lobbyCode ?? '').trim());
+          let candidate = rooms.get(code);
+          // Reconnecting host whose room emptied while it was offline (polish-pass client):
+          // recreate it under the same code, only when the code is free and valid.
+          if (!candidate && msg.recreate && code && code !== 'PUBLIC') {
+            candidate = createRoom({
+              code,
+              name: String(msg.lobbyName || `Private Climb ${code}`).slice(0, 32),
+              password: String(msg.password || ''),
+              isPublic: false,
+              includeBots: msg.includeBots !== false,
+            });
+          }
           if (!candidate) {
-            leavePrevious();
-            ws.send(
-              JSON.stringify({
-                type: 'lobby-error',
-                message: `Lobby "${code || 'UNKNOWN'}" not found. Verify the Lobby Code with your host!`,
-              })
+            lobbyError(
+              `Lobby "${code || 'UNKNOWN'}" not found. Verify the Lobby Code with your host!`,
+              'not-found',
             );
             return;
           }
           const suppliedPass = String(msg.password || '').trim();
           if (candidate.password && candidate.password !== suppliedPass) {
-            leavePrevious();
-            ws.send(
-              JSON.stringify({
-                type: 'lobby-error',
-                message: 'Incorrect Lobby Password! Please check the password and try again.',
-              })
+            lobbyError(
+              'Incorrect Lobby Password! Please check the password and try again.',
+              'bad-password',
             );
             return;
           }
           targetRoom = candidate;
         }
 
-        if (!targetRoom) {
-          targetRoom = rooms.get('PUBLIC');
-        }
-
-        leavePrevious(targetRoom.code);
+        leaveCurrent(targetRoom.code);
         currentRoomCode = targetRoom.code;
-        const initialClimber = msg.climber || {};
+        const initialClimber = msg.climber && typeof msg.climber === 'object' ? msg.climber : {};
         targetRoom.clients.set(ws, {
           id: clientId,
           name: String(initialClimber.name || 'Climber').slice(0, 18),
@@ -385,23 +419,21 @@ wss.on('connection', (ws) => {
           isBot: false,
         });
 
-        ws.send(
-          JSON.stringify({
-            type: 'lobby-joined',
-            clientId,
-            lobbyCode: targetRoom.code,
-            lobbyName: targetRoom.name,
-            mode: targetRoom.isPublic ? 'public' : 'private',
-            includeBots: targetRoom.includeBots,
-            hasPassword: Boolean(targetRoom.password),
-          })
-        );
+        send({
+          type: 'lobby-joined',
+          clientId,
+          lobbyCode: targetRoom.code,
+          lobbyName: targetRoom.name,
+          mode: targetRoom.isPublic ? 'public' : 'private',
+          includeBots: targetRoom.includeBots,
+          hasPassword: Boolean(targetRoom.password),
+        });
+      } else if (msg.type === 'leave') {
+        leaveCurrent();
       } else if (msg.type === 'state-update' && currentRoomCode) {
         const room = rooms.get(currentRoomCode);
-        if (!room) return;
-        const existing = room.clients.get(ws);
+        const existing = room?.clients.get(ws);
         if (!existing) return;
-
         room.clients.set(ws, {
           ...existing,
           name: String(msg.name || existing.name).slice(0, 18),
@@ -415,56 +447,77 @@ wss.on('connection', (ws) => {
           isBot: false,
         });
       }
-    } catch {
-      // ignore malformed messages
     }
-  });
 
-  // Without an 'error' listener, ws re-throws protocol errors (invalid opcode,
-  // bad UTF-8, oversized payload, abrupt socket resets) as an unhandled
-  // EventEmitter 'error', crashing the whole server and every lobby with it.
-  // ws terminates the socket after emitting, so 'close' still runs cleanup.
-  ws.on('error', (err) => {
-    console.warn(`[Orb Runners Summit Server] WebSocket error from ${clientId}: ${err.message}`);
-  });
-
-  ws.on('close', () => {
-    // Clean up empty private rooms after everyone leaves
-    leaveRoom(ws, currentRoomCode);
-    currentRoomCode = null;
-  });
-});
-
-// 20Hz Server Broadcast Loop
-const startTime = Date.now();
-setInterval(() => {
-  const elapsedSec = (Date.now() - startTime) / 1000;
-  const botStates = sampleBotStates(elapsedSec);
-
-  for (const room of rooms.values()) {
-    if (room.clients.size === 0) continue;
-
-    const humanClimbers = Array.from(room.clients.values());
-    const allClimbers = room.includeBots ? [...humanClimbers, ...botStates] : humanClimbers;
-
-    const payload = JSON.stringify({
-      type: 'room-state',
-      lobbyCode: room.code,
-      lobbyName: room.name,
-      climbers: allClimbers,
+    // Without an 'error' listener, ws re-throws protocol errors (invalid opcode,
+    // bad UTF-8, oversized payload, abrupt socket resets) as an unhandled
+    // EventEmitter 'error', crashing the whole server and every lobby with it.
+    // ws terminates the socket after emitting, so 'close' still runs cleanup.
+    ws.on('error', (err) => {
+      log.warn(`[Orb Runners Summit Server] WebSocket error from ${clientId}: ${err.message}`);
     });
 
-    for (const clientWs of room.clients.keys()) {
-      if (clientWs.readyState === 1) {
-        clientWs.send(payload);
+    ws.on('close', () => {
+      // Clean up empty private rooms after everyone leaves
+      leaveCurrent();
+    });
+  });
+
+  // 20Hz broadcast loop
+  const startTime = Date.now();
+  const broadcast = setInterval(() => {
+    const elapsedSec = (Date.now() - startTime) / 1000;
+    let botStates = null;
+    for (const room of rooms.values()) {
+      if (room.clients.size === 0) continue;
+      const humanClimbers = Array.from(room.clients.values());
+      if (room.includeBots && !botStates) botStates = sampleBotStates(elapsedSec);
+      const allClimbers = room.includeBots ? [...humanClimbers, ...botStates] : humanClimbers;
+      const payload = JSON.stringify({
+        type: 'room-state',
+        lobbyCode: room.code,
+        lobbyName: room.name,
+        climbers: allClimbers,
+      });
+      for (const clientWs of room.clients.keys()) {
+        if (clientWs.readyState === 1) clientWs.send(payload);
       }
     }
+  }, tickMs);
+
+  /** Stops the loops, drops every socket and closes the HTTP server. */
+  function close() {
+    clearInterval(broadcast);
+    for (const ws of wss.clients) ws.terminate();
+    wss.close();
+    return new Promise((resolve) => httpServer.close(() => resolve()));
   }
-}, 50);
 
-httpServer.listen(PORT, '0.0.0.0', () => {
-  console.log(
-    `[Orb Runners Summit Server] Listening on http://0.0.0.0:${PORT} and ws://0.0.0.0:${PORT} (Public + Private Lobbies Ready)`
-  );
-});
+  return { httpServer, wss, rooms, close };
+}
 
+/** True when this file is run directly (`node server/summitServer.mjs`), not imported by tests. */
+function isEntryPoint() {
+  if (!process.argv[1]) return false;
+  try {
+    // realpath on both sides: Node resolves symlinks for the main module's import.meta.url.
+    return fs.realpathSync(process.argv[1]) === fs.realpathSync(fileURLToPath(import.meta.url));
+  } catch {
+    return false;
+  }
+}
+
+if (isEntryPoint()) {
+  const server = createSummitServer();
+  server.httpServer.listen(PORT, '0.0.0.0', () => {
+    console.log(
+      `[Orb Runners Summit Server] Listening on http://0.0.0.0:${PORT} and ws://0.0.0.0:${PORT} (Public + Private Lobbies Ready)`,
+    );
+  });
+  const shutdown = () => {
+    server.close().then(() => process.exit(0));
+    setTimeout(() => process.exit(0), 2000).unref();
+  };
+  process.on('SIGTERM', shutdown);
+  process.on('SIGINT', shutdown);
+}
