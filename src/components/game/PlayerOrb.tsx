@@ -163,7 +163,6 @@ export function PlayerOrb({ spawnPosition, killPlaneY, respawnFallDepth }: Playe
   const runAttemptId = useGameStore((s) => s.runAttemptId);
   const checkpointRespawnTick = useGameStore((s) => s.checkpointRespawnTick);
   const activeSpawnPosition = useGameStore((s) => s.activeSpawnPosition);
-  const activeSpawnYaw = useGameStore((s) => s.activeSpawnYaw);
   const triggerFallout = useGameStore((s) => s.triggerFallout);
   const postFX = useGameStore((s) => GRAPHICS_PRESETS[s.graphicsQuality].postFX);
 
@@ -196,10 +195,15 @@ export function PlayerOrb({ spawnPosition, killPlaneY, respawnFallDepth }: Playe
   }, [runAttemptId, spawnPosition]);
 
   // Trackmania Standing Checkpoint Respawn (C / Backspace / Gamepad B)
+  // Runs only when the respawn tick changes. The spawn point is read from the store instead
+  // of being a dependency: crossing a new checkpoint moves activeSpawnPosition, and that
+  // used to re-run this effect and yank a moving orb onto the gate (dead stop) on every
+  // checkpoint after the first respawn of an attempt.
   useEffect(() => {
     if (checkpointRespawnTick === 0) return;
     const rb = bodyRef.current;
     if (!rb) return;
+    const { activeSpawnPosition, activeSpawnYaw } = useGameStore.getState();
     rb.setTranslation(
       {
         x: activeSpawnPosition[0],
@@ -220,7 +224,7 @@ export function PlayerOrb({ spawnPosition, killPlaneY, respawnFallDepth }: Playe
       2.6,
       0.4
     );
-  }, [checkpointRespawnTick, activeSpawnPosition, activeSpawnYaw]);
+  }, [checkpointRespawnTick]);
 
   useFrame((_, delta) => {
     const dt = Math.min(delta, 0.05);
