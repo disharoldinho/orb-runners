@@ -525,11 +525,13 @@ export const MAPS: LevelData[] = [
     // there is no strip the bar cannot reach: you pass beside the hub between two sweeps.
     // Gems sit inside three sweep circles on the lane; a lava sheet below catches falls.
     goalPosition: [0, 0.3, -128],
+    // Author: autopilot (scripts/autopilot, route 6), all 4 gems, run clock 32.017 s minus
+    // 3.0 s of gems = 29.017 s -> 29.1 s.
     medalTimesMs: {
-      author: 10500,
-      gold: 13500,
-      silver: 21000,
-      bronze: 36000,
+      author: 29100,
+      gold: 37000,
+      silver: 55500,
+      bronze: 93000,
     },
     checkpoints: [
       { id: 'm6-cp1', order: 1, position: [0, 0.3, -46.3] },
@@ -637,10 +639,10 @@ export const MAPS: LevelData[] = [
       { id: 'm6-lava', position: [0, -5, -66], size: [30, 2, 150], visual: 'lava' },
     ],
     gems: [
-      { id: 'm6-g1', position: [1.8, 0.9, -24.7], timeBonusMs: 1000 },
-      { id: 'm6-g2', position: [2.4, 0.9, -45.5], timeBonusMs: 1000 },
-      { id: 'm6-g3', position: [1.8, 0.9, -68.9], timeBonusMs: 1500 },
-      { id: 'm6-g4', position: [1.8, 0.9, -114.6], timeBonusMs: 2000 },
+      { id: 'm6-g1', position: [1.8, 0.9, -24.7], timeBonusMs: 500 },
+      { id: 'm6-g2', position: [2.4, 0.9, -45.5], timeBonusMs: 500 },
+      { id: 'm6-g3', position: [1.8, 0.9, -68.9], timeBonusMs: 1000 },
+      { id: 'm6-g4', position: [1.8, 0.9, -114.6], timeBonusMs: 1000 },
     ],
   },
 
