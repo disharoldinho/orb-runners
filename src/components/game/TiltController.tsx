@@ -1,4 +1,4 @@
-import { useEffect, useRef } from 'react';
+import { useEffect, useLayoutEffect, useRef } from 'react';
 import { useFrame } from '@react-three/fiber';
 import { useAfterPhysicsStep, useRapier } from '@react-three/rapier';
 import * as THREE from 'three';
@@ -103,7 +103,14 @@ export function TiltController() {
   // 50 ms while Rapier still simulates up to 500 ms per frame, so hitches gave free time.
   // After-step (not before) so world.timestep is already the fixed 1/120 s, and the store
   // is up to date before this frame's goal/checkpoint/gem sensor events are processed.
+  // Physics time of this attempt's world (TiltController mounts with the re-keyed <Physics>).
+  const physicsTime = useRef(0);
+  useLayoutEffect(() => {
+    livePhysics.physicsTimeS = 0;
+  }, []);
   useAfterPhysicsStep((stepWorld) => {
+    physicsTime.current += stepWorld.timestep;
+    livePhysics.physicsTimeS = physicsTime.current;
     const { playPhase: phase, tickTimer } = useGameStore.getState();
     if (phase === 'playing') tickTimer(stepWorld.timestep * 1000);
   });

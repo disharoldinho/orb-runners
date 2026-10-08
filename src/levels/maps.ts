@@ -71,6 +71,7 @@ export const MAPS: LevelData[] = [
   // ============================================================================
   {
     id: 2,
+    layoutVersion: 2,
     name: 'Stepping Stones',
     subtitle: 'Time your roll across oscillating sky bridges',
     difficulty: 1,
@@ -78,44 +79,106 @@ export const MAPS: LevelData[] = [
     accentColor: '#3b82f6',
     spawnPosition: [0, 1.0, 0],
     killPlaneY: -12,
-    goalPosition: [0, 0.3, -44],
+    // Teaches timing one beat at a time: a slow wide shuttle -> CP1 -> staggered stepping
+    // stones -> CP2 -> a scissor pair of shuttles with a rest deck between -> CP3 -> a
+    // quicker final shuttle into the goal plaza. Every deck that leads onto a shuttle closes
+    // down to a 4 m mouth with low caps, so you wait on solid ground and leave from the
+    // centre. Off-centre gems over the shuttles reward boarding while the shuttle swings.
+    goalPosition: [0, 0.3, -103],
+    // Author: autopilot (scripts/autopilot, route 2), all 5 gems, 18.583 s -> 18.6 s.
     medalTimesMs: {
-      author: 8600,
-      gold: 11000,
-      silver: 16500,
-      bronze: 28000,
+      author: 18600,
+      gold: 24000,
+      silver: 35500,
+      bronze: 59500,
     },
     checkpoints: [
-      { id: 'm2-cp1', order: 1, position: [0, 0.3, -22] },
+      { id: 'm2-cp1', order: 1, position: [0, 0.3, -24] },
+      { id: 'm2-cp2', order: 2, position: [0, 0.3, -51] },
+      { id: 'm2-cp3', order: 3, position: [0, 0.3, -82] },
     ],
     blocks: [
-      { id: 'm2-b1', position: [0, 0, -4], size: [6.5, 0.6, 11], theme: 'cobalt', rails: 'both' },
-      { id: 'm2-b2', position: [0, 0, -22], size: [7, 0.6, 8], theme: 'cobalt' },
-      { id: 'm2-b3', position: [0, 0, -41], size: [7.5, 0.6, 11], theme: 'cobalt', rails: 'both' },
+      { id: 'm2-b1', position: [0, 0, -6], size: [7, 0.6, 14], theme: 'cobalt', rails: 'both' },
+      { id: 'm2-cap1l', position: [-2.75, 0.7, -12.85], size: [1.5, 0.8, 0.3], theme: 'warning' },
+      { id: 'm2-cap1r', position: [2.75, 0.7, -12.85], size: [1.5, 0.8, 0.3], theme: 'warning' },
+      // CP1 deck
+      { id: 'm2-b2', position: [0, 0, -26], size: [7, 0.6, 10], theme: 'cobalt', rails: 'both' },
+      // The stepping stones: staggered, 0.5 m joints, a 2.4 m wide overlap to thread
+      { id: 'm2-s1', position: [-0.9, 0, -33.3], size: [4.2, 0.6, 3.6], theme: 'meadow' },
+      { id: 'm2-s2', position: [0.9, 0, -37.4], size: [4.2, 0.6, 3.6], theme: 'meadow' },
+      { id: 'm2-s3', position: [-0.9, 0, -41.5], size: [4.2, 0.6, 3.6], theme: 'meadow' },
+      { id: 'm2-s4', position: [0.9, 0, -45.6], size: [4.2, 0.6, 3.6], theme: 'meadow' },
+      // CP2 rest deck
+      { id: 'm2-b3', position: [0, 0, -52.4], size: [7, 0.6, 9], theme: 'cobalt', rails: 'both' },
+      { id: 'm2-cap3l', position: [-2.75, 0.7, -56.75], size: [1.5, 0.8, 0.3], theme: 'warning' },
+      { id: 'm2-cap3r', position: [2.75, 0.7, -56.75], size: [1.5, 0.8, 0.3], theme: 'warning' },
+      // Island between the scissor shuttles
+      { id: 'm2-b4', position: [0, 0, -67.7], size: [6, 0.6, 6], theme: 'cobalt', rails: 'both' },
+      { id: 'm2-cap4l', position: [-2.5, 0.7, -70.55], size: [1, 0.8, 0.3], theme: 'warning' },
+      { id: 'm2-cap4r', position: [2.5, 0.7, -70.55], size: [1, 0.8, 0.3], theme: 'warning' },
+      // CP3 deck
+      { id: 'm2-b5', position: [0, 0, -83.5], size: [7, 0.6, 10], theme: 'cobalt', rails: 'both' },
+      { id: 'm2-cap5l', position: [-2.75, 0.7, -88.35], size: [1.5, 0.8, 0.3], theme: 'warning' },
+      { id: 'm2-cap5r', position: [2.75, 0.7, -88.35], size: [1.5, 0.8, 0.3], theme: 'warning' },
+      // Goal plaza
+      { id: 'm2-b6', position: [0, 0, -101.2], size: [9, 0.6, 11], theme: 'meadow', rails: 'both' },
+      // Set-dressing: beacon posts marking how far each shuttle swings (no collider)
+      { id: 'm2-post1l', position: [-5.6, 0.2, -17], size: [0.45, 2.6, 0.45], theme: 'warning', decorative: true },
+      { id: 'm2-post1r', position: [5.6, 0.2, -17], size: [0.45, 2.6, 0.45], theme: 'warning', decorative: true },
+      { id: 'm2-post2l', position: [-5.2, 0.2, -60.8], size: [0.45, 2.6, 0.45], theme: 'warning', decorative: true },
+      { id: 'm2-post2r', position: [5.2, 0.2, -60.8], size: [0.45, 2.6, 0.45], theme: 'warning', decorative: true },
+      { id: 'm2-post3l', position: [-5.2, 0.2, -74.6], size: [0.45, 2.6, 0.45], theme: 'warning', decorative: true },
+      { id: 'm2-post3r', position: [5.2, 0.2, -74.6], size: [0.45, 2.6, 0.45], theme: 'warning', decorative: true },
+      { id: 'm2-post4l', position: [-4.8, 0.2, -92.1], size: [0.45, 2.6, 0.45], theme: 'warning', decorative: true },
+      { id: 'm2-post4r', position: [4.8, 0.2, -92.1], size: [0.45, 2.6, 0.45], theme: 'warning', decorative: true },
     ],
     movingPlatforms: [
+      // Wide and slow (2.5 m/s peak): the first timing lesson
       {
         id: 'm2-mp1',
-        start: [-3.2, 0, -13.5],
-        end: [3.2, 0, -13.5],
-        size: [4.5, 0.6, 7.5],
-        speed: 1.8,
+        start: [-2.5, 0, -17],
+        end: [2.5, 0, -17],
+        size: [5, 0.6, 7.8],
+        speed: 1.0,
+        phaseOffset: 2.8,
+        theme: 'warning',
+      },
+      // Scissor pair: they pass the centre together, moving in opposite directions
+      {
+        id: 'm2-mp2',
+        start: [2.4, 0, -60.8],
+        end: [-2.4, 0, -60.8],
+        size: [4.4, 0.6, 7.6],
+        speed: 1.25,
+        phaseOffset: 0.2,
         theme: 'warning',
       },
       {
-        id: 'm2-mp2',
-        start: [3.5, 0, -30.5],
-        end: [-3.5, 0, -30.5],
-        size: [4.5, 0.6, 8.5],
-        speed: 2.1,
-        phaseOffset: 1.2,
+        id: 'm2-mp3',
+        start: [-2.4, 0, -74.6],
+        end: [2.4, 0, -74.6],
+        size: [4.4, 0.6, 7.6],
+        speed: 1.25,
+        phaseOffset: 0.2 + Math.PI,
+        theme: 'warning',
+      },
+      // Final shuttle: shorter dwell at the centre than the others
+      {
+        id: 'm2-mp4',
+        start: [2.0, 0, -92.1],
+        end: [-2.0, 0, -92.1],
+        size: [4.4, 0.6, 7],
+        speed: 1.1,
+        phaseOffset: 0.8,
         theme: 'warning',
       },
     ],
     gems: [
-      { id: 'm2-g1', position: [0, 0.9, -13.5], timeBonusMs: 1500 },
-      { id: 'm2-g2', position: [0, 0.9, -22], timeBonusMs: 1200 },
-      { id: 'm2-g3', position: [0, 0.9, -30.5], timeBonusMs: 1500 },
+      { id: 'm2-g1', position: [2.2, 0.9, -17], timeBonusMs: 1000 },
+      { id: 'm2-g2', position: [1.8, 0.9, -37.4], timeBonusMs: 1000 },
+      { id: 'm2-g3', position: [-2.0, 0.9, -60.8], timeBonusMs: 1000 },
+      { id: 'm2-g4', position: [2.0, 0.9, -74.6], timeBonusMs: 1000 },
+      { id: 'm2-g5', position: [0, 0.9, -98], timeBonusMs: 1000 },
     ],
   },
 
@@ -124,6 +187,7 @@ export const MAPS: LevelData[] = [
   // ============================================================================
   {
     id: 3,
+    layoutVersion: 2,
     name: 'Bumper Boulevard',
     subtitle: 'Pinball chaos! Weave through or ricochet to victory',
     difficulty: 2,
@@ -131,37 +195,96 @@ export const MAPS: LevelData[] = [
     accentColor: '#f97316',
     spawnPosition: [0, 1.0, 0],
     killPlaneY: -12,
-    goalPosition: [0, 0.3, -46],
+    // A fully railed boulevard (1 m pinball walls from the first bumper to the last): a
+    // bumper kick can bang you into a wall but never over it. Three blocks of rising density, each followed by a checkpoint:
+    // a wide slalom you can thread straight -> an arrowhead cluster (gem inside it) and a
+    // bumper gate -> a narrow chicane gauntlet that forces a weave -> gold finish. Side gems
+    // sit on the tight side of a bumper: taking one means threading the gap.
+    goalPosition: [0, 0.3, -133],
+    // Author: autopilot (scripts/autopilot, route 3, pace x1.15), all 4 gems, no bumper
+    // contact, 26.883 s -> 26.9 s.
     medalTimesMs: {
-      author: 8200,
-      gold: 10500,
-      silver: 15500,
-      bronze: 25000,
+      author: 26900,
+      gold: 34500,
+      silver: 51000,
+      bronze: 86000,
     },
     checkpoints: [
-      { id: 'm3-cp1', order: 1, position: [0, 0.3, -20.5] },
-      { id: 'm3-cp2', order: 2, position: [0, 0.3, -37.5] },
+      { id: 'm3-cp1', order: 1, position: [0, 0.3, -50] },
+      { id: 'm3-cp2', order: 2, position: [0, 0.3, -88] },
     ],
     blocks: [
-      { id: 'm3-b1', position: [0, 0, -4], size: [7, 0.6, 10], theme: 'sunset', rails: 'both' },
-      { id: 'm3-b2', position: [0, 0, -22], size: [11, 0.6, 26], theme: 'sunset' },
-      { id: 'm3-b3', position: [0, 0, -42], size: [6.5, 0.6, 14], theme: 'gold', rails: 'both' },
+      { id: 'm3-b1', position: [0, 0, -5], size: [8, 0.6, 12], theme: 'sunset', rails: 'both' },
+      // Slalom
+      { id: 'm3-cap1l', position: [-4.5, 0.7, -11.15], size: [1, 0.8, 0.3], theme: 'warning' },
+      { id: 'm3-cap1r', position: [4.5, 0.7, -11.15], size: [1, 0.8, 0.3], theme: 'warning' },
+      { id: 'm3-b2', position: [0, 0, -29], size: [10, 0.6, 36], theme: 'sunset', rails: 'both', railHeight: 1.0 },
+      { id: 'm3-cap2l', position: [-4.5, 0.8, -46.85], size: [1, 1.0, 0.3], theme: 'warning' },
+      { id: 'm3-cap2r', position: [4.5, 0.8, -46.85], size: [1, 1.0, 0.3], theme: 'warning' },
+      // CP1 deck
+      { id: 'm3-b3', position: [0, 0, -51], size: [8, 0.6, 8], theme: 'gold', rails: 'both', railHeight: 1.0 },
+      // Arrowhead + gate
+      { id: 'm3-cap3l', position: [-4.75, 0.8, -55.15], size: [1.5, 1.0, 0.3], theme: 'warning' },
+      { id: 'm3-cap3r', position: [4.75, 0.8, -55.15], size: [1.5, 1.0, 0.3], theme: 'warning' },
+      { id: 'm3-b4', position: [0, 0, -70], size: [11, 0.6, 30], theme: 'sunset', rails: 'both', railHeight: 1.0 },
+      { id: 'm3-cap4l', position: [-4.75, 0.8, -84.85], size: [1.5, 1.0, 0.3], theme: 'warning' },
+      { id: 'm3-cap4r', position: [4.75, 0.8, -84.85], size: [1.5, 1.0, 0.3], theme: 'warning' },
+      // CP2 deck
+      { id: 'm3-b5', position: [0, 0, -89], size: [8, 0.6, 8], theme: 'gold', rails: 'both', railHeight: 1.0 },
+      { id: 'm3-cap5l', position: [-3.5, 0.8, -92.85], size: [1, 1.0, 0.3], theme: 'warning' },
+      { id: 'm3-cap5r', position: [3.5, 0.8, -92.85], size: [1, 1.0, 0.3], theme: 'warning' },
+      // Chicane gauntlet
+      { id: 'm3-b6', position: [0, 0, -108], size: [6, 0.6, 30], theme: 'sunset', rails: 'both', railHeight: 1.0 },
+      { id: 'm3-cap6l', position: [-3.75, 0.8, -123.15], size: [1.5, 1.0, 0.3], theme: 'warning' },
+      { id: 'm3-cap6r', position: [3.75, 0.8, -123.15], size: [1.5, 1.0, 0.3], theme: 'warning' },
+      // Gold finish
+      { id: 'm3-b7', position: [0, 0, -130], size: [9, 0.6, 14], theme: 'gold', rails: 'both' },
+      // Set-dressing: boulevard lamp posts outside the rails (no collider)
+      { id: 'm3-lamp1l', position: [-5.6, 0.5, -15], size: [0.35, 2.6, 0.35], theme: 'gold', decorative: true },
+      { id: 'm3-lamp1r', position: [5.6, 0.5, -15], size: [0.35, 2.6, 0.35], theme: 'gold', decorative: true },
+      { id: 'm3-lamp2l', position: [-5.6, 0.5, -29], size: [0.35, 2.6, 0.35], theme: 'gold', decorative: true },
+      { id: 'm3-lamp2r', position: [5.6, 0.5, -29], size: [0.35, 2.6, 0.35], theme: 'gold', decorative: true },
+      { id: 'm3-lamp3l', position: [-5.6, 0.5, -43], size: [0.35, 2.6, 0.35], theme: 'gold', decorative: true },
+      { id: 'm3-lamp3r', position: [5.6, 0.5, -43], size: [0.35, 2.6, 0.35], theme: 'gold', decorative: true },
+      { id: 'm3-lamp4l', position: [-6.1, 0.5, -59], size: [0.35, 2.6, 0.35], theme: 'gold', decorative: true },
+      { id: 'm3-lamp4r', position: [6.1, 0.5, -59], size: [0.35, 2.6, 0.35], theme: 'gold', decorative: true },
+      { id: 'm3-lamp5l', position: [-6.1, 0.5, -70], size: [0.35, 2.6, 0.35], theme: 'gold', decorative: true },
+      { id: 'm3-lamp5r', position: [6.1, 0.5, -70], size: [0.35, 2.6, 0.35], theme: 'gold', decorative: true },
+      { id: 'm3-lamp6l', position: [-6.1, 0.5, -81], size: [0.35, 2.6, 0.35], theme: 'gold', decorative: true },
+      { id: 'm3-lamp6r', position: [6.1, 0.5, -81], size: [0.35, 2.6, 0.35], theme: 'gold', decorative: true },
+      { id: 'm3-lamp7l', position: [-3.6, 0.5, -97], size: [0.35, 2.6, 0.35], theme: 'gold', decorative: true },
+      { id: 'm3-lamp7r', position: [3.6, 0.5, -97], size: [0.35, 2.6, 0.35], theme: 'gold', decorative: true },
+      { id: 'm3-lamp8l', position: [-3.6, 0.5, -108], size: [0.35, 2.6, 0.35], theme: 'gold', decorative: true },
+      { id: 'm3-lamp8r', position: [3.6, 0.5, -108], size: [0.35, 2.6, 0.35], theme: 'gold', decorative: true },
+      { id: 'm3-lamp9l', position: [-3.6, 0.5, -119], size: [0.35, 2.6, 0.35], theme: 'gold', decorative: true },
+      { id: 'm3-lamp9r', position: [3.6, 0.5, -119], size: [0.35, 2.6, 0.35], theme: 'gold', decorative: true },
     ],
     bumpers: [
-      { id: 'm3-bmp1', position: [-2.4, 0.75, -13], radius: 0.8 },
-      { id: 'm3-bmp2', position: [2.4, 0.75, -13], radius: 0.8 },
-      { id: 'm3-bmp3', position: [0, 0.75, -18], radius: 0.95 },
-      { id: 'm3-bmp4', position: [-3.0, 0.75, -23], radius: 0.8 },
-      { id: 'm3-bmp5', position: [3.0, 0.75, -23], radius: 0.8 },
-      { id: 'm3-bmp6', position: [-1.6, 0.75, -28], radius: 0.85 },
-      { id: 'm3-bmp7', position: [1.6, 0.75, -28], radius: 0.85 },
-      { id: 'm3-bmp8', position: [0, 0.75, -33], radius: 0.85 },
+      // Slalom (a straight line threads it; the side gem doesn't)
+      { id: 'm3-bmp1', position: [-1.8, 0.75, -18], radius: 0.8 },
+      { id: 'm3-bmp2', position: [1.8, 0.75, -25], radius: 0.8 },
+      { id: 'm3-bmp3', position: [-1.8, 0.75, -32], radius: 0.8 },
+      { id: 'm3-bmp4', position: [1.8, 0.75, -39], radius: 0.8 },
+      // Arrowhead (gem inside, open at the back). Bumper kicks add energy, so there is no
+      // closed pocket anywhere: a ball can't get trapped ricocheting between bumpers.
+      { id: 'm3-bmp5', position: [0, 0.75, -58.5], radius: 0.9 },
+      { id: 'm3-bmp6', position: [-2.6, 0.75, -63.5], radius: 0.85 },
+      { id: 'm3-bmp7', position: [2.6, 0.75, -63.5], radius: 0.85 },
+      // Gate + post
+      { id: 'm3-bmp8', position: [-2.4, 0.75, -75], radius: 0.9 },
+      { id: 'm3-bmp9', position: [2.4, 0.75, -75], radius: 0.9 },
+      { id: 'm3-bmp10', position: [0, 0.75, -80.5], radius: 1.0 },
+      // Gauntlet chicanes (no straight line through)
+      { id: 'm3-bmp11', position: [-1.3, 0.75, -99], radius: 0.7 },
+      { id: 'm3-bmp12', position: [1.3, 0.75, -105.5], radius: 0.7 },
+      { id: 'm3-bmp13', position: [-1.3, 0.75, -112], radius: 0.7 },
+      { id: 'm3-bmp14', position: [1.3, 0.75, -118.5], radius: 0.7 },
     ],
     gems: [
-      { id: 'm3-g1', position: [0, 0.9, -13], timeBonusMs: 1500 },
-      { id: 'm3-g2', position: [-2.2, 0.9, -18], timeBonusMs: 1500 },
-      { id: 'm3-g3', position: [2.2, 0.9, -18], timeBonusMs: 1500 },
-      { id: 'm3-g4', position: [0, 0.9, -28], timeBonusMs: 1500 },
+      { id: 'm3-g1', position: [-3.6, 0.9, -32], timeBonusMs: 1000 },
+      { id: 'm3-g2', position: [0, 0.9, -62.8], timeBonusMs: 1500 },
+      { id: 'm3-g3', position: [-3.3, 0.9, -80.5], timeBonusMs: 1000 },
+      { id: 'm3-g4', position: [1.6, 0.9, -112], timeBonusMs: 1000 },
     ],
   },
 
@@ -170,6 +293,7 @@ export const MAPS: LevelData[] = [
   // ============================================================================
   {
     id: 4,
+    layoutVersion: 2,
     name: 'Windmill Crossing',
     subtitle: 'Ride the spinning cross-bridges without getting swept off',
     difficulty: 2,
@@ -177,45 +301,87 @@ export const MAPS: LevelData[] = [
     accentColor: '#38bdf8',
     spawnPosition: [0, 1.0, 0],
     killPlaneY: -14,
-    goalPosition: [0, 0.3, -49],
+    // Four windmills: board an arm as it swings into line, ride to the (now flush) hub, and
+    // leave when the next arm lines up with the exit. A slow first windmill (hub gem) ->
+    // CP1 -> a counter-rotating pair around a railed island (gems out on the side arms:
+    // ride out and back while the arm is broadside) -> CP2 -> a faster final windmill.
+    // Arms stop 0.37 m short of the decks, so nothing ever clips through a deck, and every
+    // deck end closes down to the 3.6 m arm width with caps.
+    goalPosition: [0, 0.3, -86.5],
+    // Author: autopilot (scripts/autopilot, route 4), all 4 gems, 28.067 s -> 28.1 s.
     medalTimesMs: {
-      author: 10200,
-      gold: 13000,
-      silver: 19000,
-      bronze: 32000,
+      author: 28100,
+      gold: 36000,
+      silver: 53500,
+      bronze: 90000,
     },
     checkpoints: [
       { id: 'm4-cp1', order: 1, position: [0, 0.3, -25] },
+      { id: 'm4-cp2', order: 2, position: [0, 0.3, -63] },
     ],
     blocks: [
-      { id: 'm4-b1', position: [0, 0, -4], size: [6.5, 0.6, 10], theme: 'cobalt', rails: 'both' },
-      { id: 'm4-b2', position: [0, 0, -25], size: [6.5, 0.6, 7], theme: 'warning' },
-      { id: 'm4-b3', position: [0, 0, -46], size: [7, 0.6, 11], theme: 'cobalt', rails: 'both' },
+      { id: 'm4-b1', position: [0, 0, -5], size: [7, 0.6, 12], theme: 'cobalt', rails: 'both' },
+      { id: 'm4-cap1l', position: [-2.65, 0.7, -10.85], size: [1.7, 0.8, 0.3], theme: 'warning' },
+      { id: 'm4-cap1r', position: [2.65, 0.7, -10.85], size: [1.7, 0.8, 0.3], theme: 'warning' },
+      // CP1 deck
+      { id: 'm4-b2', position: [0, 0, -25.94], size: [7, 0.6, 10], theme: 'cobalt', rails: 'both' },
+      { id: 'm4-cap2l', position: [-2.65, 0.7, -30.79], size: [1.7, 0.8, 0.3], theme: 'warning' },
+      { id: 'm4-cap2r', position: [2.65, 0.7, -30.79], size: [1.7, 0.8, 0.3], theme: 'warning' },
+      // Island between the counter-rotating pair
+      { id: 'm4-b3', position: [0, 0, -44.88], size: [7, 0.6, 8], theme: 'meadow', rails: 'both' },
+      { id: 'm4-cap3l', position: [-2.65, 0.7, -48.73], size: [1.7, 0.8, 0.3], theme: 'warning' },
+      { id: 'm4-cap3r', position: [2.65, 0.7, -48.73], size: [1.7, 0.8, 0.3], theme: 'warning' },
+      // CP2 deck
+      { id: 'm4-b4', position: [0, 0, -63.82], size: [7, 0.6, 10], theme: 'cobalt', rails: 'both' },
+      { id: 'm4-cap4l', position: [-2.65, 0.7, -68.67], size: [1.7, 0.8, 0.3], theme: 'warning' },
+      { id: 'm4-cap4r', position: [2.65, 0.7, -68.67], size: [1.7, 0.8, 0.3], theme: 'warning' },
+      // Goal plaza
+      { id: 'm4-b5', position: [0, 0, -84.76], size: [9, 0.6, 12], theme: 'gold', rails: 'both' },
+      // Set-dressing: windmill towers under each hub (no collider)
+      { id: 'm4-tower1', position: [0, -5.1, -15.97], size: [1.2, 9, 1.2], theme: 'cloud', decorative: true },
+      { id: 'm4-tower2', position: [0, -5.1, -35.91], size: [1.2, 9, 1.2], theme: 'cloud', decorative: true },
+      { id: 'm4-tower3', position: [0, -5.1, -53.85], size: [1.2, 9, 1.2], theme: 'cloud', decorative: true },
+      { id: 'm4-tower4', position: [0, -5.1, -73.79], size: [1.2, 9, 1.2], theme: 'cloud', decorative: true },
     ],
     rotatingHazards: [
       {
         id: 'm4-rh1',
-        position: [0, 0, -15.2],
-        size: [3.2, 0.6, 13.5],
-        angularVelocity: [0, 0.75, 0],
+        position: [0, 0, -15.97],
+        size: [3.6, 0.6, 9.2],
+        angularVelocity: [0, 0.45, 0],
         type: 'cross-bridge',
         color: '#38bdf8',
       },
       {
         id: 'm4-rh2',
-        position: [0, 0, -34.8],
-        size: [3.2, 0.6, 13.5],
-        angularVelocity: [0, -0.85, 0],
+        position: [0, 0, -35.91],
+        size: [3.6, 0.6, 9.2],
+        angularVelocity: [0, -0.55, 0],
         type: 'cross-bridge',
         color: '#a855f7',
       },
+      {
+        id: 'm4-rh3',
+        position: [0, 0, -53.85],
+        size: [3.6, 0.6, 9.2],
+        angularVelocity: [0, 0.55, 0],
+        type: 'cross-bridge',
+        color: '#a855f7',
+      },
+      {
+        id: 'm4-rh4',
+        position: [0, 0, -73.79],
+        size: [3.6, 0.6, 9.2],
+        angularVelocity: [0, 0.75, 0],
+        type: 'cross-bridge',
+        color: '#f59e0b',
+      },
     ],
-    bumpers: [{ id: 'm4-bmp1', position: [0, 0.75, -22.2], radius: 0.7 }],
     gems: [
-      { id: 'm4-g1', position: [0, 1.0, -15.2], timeBonusMs: 1500 },
-      { id: 'm4-g2', position: [-2.0, 0.9, -25], timeBonusMs: 1500 },
-      { id: 'm4-g3', position: [2.0, 0.9, -25], timeBonusMs: 1500 },
-      { id: 'm4-g4', position: [0, 1.0, -34.8], timeBonusMs: 1500 },
+      { id: 'm4-g1', position: [0, 0.9, -15.97], timeBonusMs: 1000 },
+      { id: 'm4-g2', position: [-3.4, 0.9, -35.91], timeBonusMs: 2000 },
+      { id: 'm4-g3', position: [3.4, 0.9, -53.85], timeBonusMs: 2000 },
+      { id: 'm4-g4', position: [0, 0.9, -73.79], timeBonusMs: 1000 },
     ],
   },
 
