@@ -405,11 +405,13 @@ export const MAPS: LevelData[] = [
     // rejoin for the summit zigzag: a 28 m ridge railed on the left only, a walled corner,
     // the west leg, a second corner (checkpoint) and a final ridge railed on the right.
     goalPosition: [-22, 0.3, -124],
+    // Author: autopilot (scripts/autopilot, route 5, shortcut line), 2 of 3 gems, 29.233 s
+    // -> 29.3 s. The switchback line (its gem only) ran 30.258 s.
     medalTimesMs: {
-      author: 8200,
-      gold: 11000,
-      silver: 18500,
-      bronze: 32000,
+      author: 29300,
+      gold: 37500,
+      silver: 55500,
+      bronze: 94000,
     },
     checkpoints: [
       { id: 'm5-cp1', order: 1, position: [0, 0.3, -16.5] },
