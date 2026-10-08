@@ -647,14 +647,20 @@ export const MAPS: LevelData[] = [
   // ============================================================================
   {
     id: 7,
+    layoutVersion: 2,
     name: 'Cascade Coaster',
-    subtitle: 'Full-throttle downhill ramp jump into high-altitude islands',
+    subtitle: 'Three ice drops, chicanes to scrub speed, and a ferry over the last gap',
     difficulty: 4,
     skyPreset: 'day',
     accentColor: '#38bdf8',
     spawnPosition: [0, 1.0, 0],
-    killPlaneY: -22,
-    goalPosition: [0, -6.7, -58],
+    killPlaneY: -30,
+    // A 16 m descent in three ice ramps (20, 24, 26 m; steeper each time) with 1 m rails.
+    // Between them, railed grip flats where chicane stubs make you scrub the speed you
+    // just built (checkpoint on each). Each ramp's gem sits on the exit line that sets up
+    // the next chicane, so you commit to a side on the way down. The last flat is a braking
+    // straight to a 7 m gap crossed on a sideways ferry, then the gold finish.
+    goalPosition: [0, -16.062, -140],
     medalTimesMs: {
       author: 9200,
       gold: 11500,
@@ -662,59 +668,67 @@ export const MAPS: LevelData[] = [
       bronze: 30000,
     },
     checkpoints: [
-      { id: 'm7-cp1', order: 1, position: [0, -5.7, -26.2] },
-      { id: 'm7-cp2', order: 2, position: [0, -6.7, -41.5] },
+      { id: 'm7-cp1', order: 1, position: [0, -3.673, -32.6] },
+      { id: 'm7-cp2', order: 2, position: [0, -9.378, -69.9] },
+      { id: 'm7-cp3', order: 3, position: [0, -16.062, -119] },
     ],
     blocks: [
-      { id: 'm7-b1', position: [0, 0, -3.5], size: [6, 0.6, 9], theme: 'ice', rails: 'both' },
-      {
-        id: 'm7-b2',
-        position: [0, -3.0, -16],
-        size: [5.4, 0.6, 18.5],
-        rotation: [-0.34, 0, 0],
-        theme: 'ice',
-        rails: 'both',
-      },
-      {
-        id: 'm7-b3',
-        position: [0, -6.0, -26.5],
-        size: [5.8, 0.6, 5.0],
-        theme: 'warning',
-        rails: 'both',
-      },
-      {
-        id: 'm7-b4',
-        position: [0, -7.0, -38],
-        size: [9.5, 0.6, 14.5],
-        theme: 'cobalt',
-        rails: 'both',
-      },
-      {
-        id: 'm7-b5',
-        position: [0, -7.0, -56],
-        size: [7, 0.6, 11],
-        theme: 'gold',
-        rails: 'both',
-      },
+      { id: 'm7-b1', position: [0, 0, -5], size: [7, 0.6, 12], theme: 'cobalt', rails: 'both' },
+      { id: 'm7-cap1l', position: [-3.0, 0.7, -10.85], size: [1.0, 0.8, 0.3], theme: 'warning' },
+      { id: 'm7-cap1r', position: [3.0, 0.7, -10.85], size: [1.0, 0.8, 0.3], theme: 'warning' },
+      // Ice ramp 1: 20 m at 0.2 rad (drop 3.973 m), 1 m rails
+      { id: 'm7-r1', position: [0, -1.981, -20.741], size: [5, 0.6, 20], rotation: [-0.2, 0, 0], railHeight: 1, theme: 'ice', rails: 'both' },
+      // Flat 1: speed control, a chicane, checkpoint
+      { id: 'm7-f1', position: [0, -3.973, -37.601], size: [7, 0.6, 14], theme: 'cobalt', rails: 'both' },
+      { id: 'm7-f1-sl', position: [-3.0, -3.273, -30.751], size: [1.0, 0.8, 0.3], theme: 'warning' },
+      { id: 'm7-f1-sr', position: [3.0, -3.273, -30.751], size: [1.0, 0.8, 0.3], theme: 'warning' },
+      { id: 'm7-f1-stl5', position: [-2.0, -3.273, -35.601], size: [3, 0.8, 0.4], theme: 'warning' },
+      { id: 'm7-f1-str9', position: [2.0, -3.273, -40.101], size: [3, 0.8, 0.4], theme: 'warning' },
+      { id: 'm7-f1-nl', position: [-3.0, -3.273, -44.451], size: [1.0, 0.8, 0.3], theme: 'warning' },
+      { id: 'm7-f1-nr', position: [3.0, -3.273, -44.451], size: [1.0, 0.8, 0.3], theme: 'warning' },
+      // Ice ramp 2: 24 m at 0.24 rad (drop 5.705 m), 1 m rails
+      { id: 'm7-r2', position: [0, -6.817, -56.186], size: [5, 0.6, 24], rotation: [-0.24, 0, 0], railHeight: 1, theme: 'ice', rails: 'both' },
+      // Flat 2: longer chicane, checkpoint
+      { id: 'm7-f2', position: [0, -9.678, -75.913], size: [7, 0.6, 16], theme: 'cobalt', rails: 'both' },
+      { id: 'm7-f2-sl', position: [-3.0, -8.978, -68.063], size: [1.0, 0.8, 0.3], theme: 'warning' },
+      { id: 'm7-f2-sr', position: [3.0, -8.978, -68.063], size: [1.0, 0.8, 0.3], theme: 'warning' },
+      { id: 'm7-f2-str5', position: [2.0, -8.978, -72.913], size: [3, 0.8, 0.4], theme: 'warning' },
+      { id: 'm7-f2-stl9', position: [-2.0, -8.978, -77.413], size: [3, 0.8, 0.4], theme: 'warning' },
+      { id: 'm7-f2-str13', position: [2.0, -8.978, -80.913], size: [3, 0.8, 0.4], theme: 'warning' },
+      { id: 'm7-f2-nl', position: [-3.0, -8.978, -83.763], size: [1.0, 0.8, 0.3], theme: 'warning' },
+      { id: 'm7-f2-nr', position: [3.0, -8.978, -83.763], size: [1.0, 0.8, 0.3], theme: 'warning' },
+      // Ice ramp 3: 26 m at 0.26 rad (drop 6.684 m), 1 m rails
+      { id: 'm7-r3', position: [0, -13.01, -96.399], size: [5, 0.6, 26], rotation: [-0.26, 0, 0], railHeight: 1, theme: 'ice', rails: 'both' },
+      // Flat 3: braking straight before the ferry gap
+      { id: 'm7-f3', position: [0, -16.362, -117.04], size: [7, 0.6, 16], theme: 'cobalt', rails: 'both' },
+      { id: 'm7-f3-sl', position: [-3.0, -15.662, -109.19], size: [1.0, 0.8, 0.3], theme: 'warning' },
+      { id: 'm7-f3-sr', position: [3.0, -15.662, -109.19], size: [1.0, 0.8, 0.3], theme: 'warning' },
+      // Goal deck
+      { id: 'm7-b9', position: [0, -16.362, -138.04], size: [8, 0.6, 12], theme: 'gold', rails: 'both' },
+      { id: 'm7-b9-end', position: [0, -15.662, -143.89], size: [7.4, 0.8, 0.3], theme: 'warning' },
+      // Set-dressing: ice pylons at each ramp lip (no collider)
+      { id: 'm7-pyl1l', position: [-4.4, -2.873, -31.601], size: [0.6, 2.6, 0.6], theme: 'ice', decorative: true },
+      { id: 'm7-pyl1r', position: [4.4, -2.873, -31.601], size: [0.6, 2.6, 0.6], theme: 'ice', decorative: true },
+      { id: 'm7-pyl2l', position: [-4.4, -8.578, -68.913], size: [0.6, 2.6, 0.6], theme: 'ice', decorative: true },
+      { id: 'm7-pyl2r', position: [4.4, -8.578, -68.913], size: [0.6, 2.6, 0.6], theme: 'ice', decorative: true },
+      { id: 'm7-pyl3l', position: [-4.4, -15.262, -110.04], size: [0.6, 2.6, 0.6], theme: 'ice', decorative: true },
+      { id: 'm7-pyl3r', position: [4.4, -15.262, -110.04], size: [0.6, 2.6, 0.6], theme: 'ice', decorative: true },
     ],
     movingPlatforms: [
       {
+        // sideways ferry: x = -2.6 cos(t * 0.9); in line with the decks twice per cycle
         id: 'm7-mp1',
-        start: [-3.5, -7.0, -47.8],
-        end: [3.5, -7.0, -47.8],
-        size: [4.2, 0.6, 6.5],
-        speed: 2.4,
+        start: [-2.6, -16.362, -128.54],
+        end: [2.6, -16.362, -128.54],
+        size: [5, 0.6, 6.6],
+        speed: 0.9,
         theme: 'warning',
       },
     ],
-    bumpers: [
-      { id: 'm7-bmp1', position: [-2.5, -6.25, -36], radius: 0.8 },
-      { id: 'm7-bmp2', position: [2.5, -6.25, -36], radius: 0.8 },
-    ],
     gems: [
-      { id: 'm7-g1', position: [0, -2.0, -16], timeBonusMs: 1500 },
-      { id: 'm7-g2', position: [0, -5.0, -29.5], timeBonusMs: 2000 },
-      { id: 'm7-g3', position: [0, -6.1, -38], timeBonusMs: 1500 },
+      { id: 'm7-g1', position: [1.7, -2.65, -28.5], timeBonusMs: 1000 },
+      { id: 'm7-g2', position: [-1.7, -8.26, -65.81], timeBonusMs: 1000 },
+      { id: 'm7-g3', position: [-1.7, -14.9, -106.94], timeBonusMs: 1500 },
     ],
   },
 
