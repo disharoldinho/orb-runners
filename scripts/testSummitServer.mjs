@@ -4,6 +4,8 @@
  */
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
+import nodeHttp from 'node:http';
+import zlib from 'node:zlib';
 import os from 'node:os';
 import path from 'node:path';
 import { WebSocket } from 'ws';
@@ -515,6 +517,145 @@ await test('caps: private room count, room size, PUBLIC size, total connections'
       await Promise.all([a, b, c, d, e].map((x) => x.close()));
     },
   ));
+
+/** Raw HTTP request (no automatic decompression), resolves { status, headers, body: Buffer }. */
+function rawGet(base, pathName, { method = 'GET', headers = {} } = {}) {
+  const u = new URL(base);
+  return new Promise((resolve, reject) => {
+    const req = nodeHttp.request(
+      { host: u.hostname, port: u.port, path: pathName, method, headers },
+      (res) => {
+        const chunks = [];
+        res.on('data', (c) => chunks.push(c));
+        res.on('end', () =>
+          resolve({ status: res.statusCode, headers: res.headers, body: Buffer.concat(chunks) }),
+        );
+      },
+    );
+    req.on('error', reject);
+    req.end();
+  });
+}
+
+await test('http: lobby list, SPA fallback, 404 for missing assets, no path traversal', async () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'orb-dist-'));
+  fs.mkdirSync(path.join(dir, 'assets'));
+  fs.writeFileSync(path.join(dir, 'index.html'), '<html>shell</html>');
+  fs.writeFileSync(path.join(dir, 'assets', 'app-abc.js'), 'console.log(1)');
+  fs.writeFileSync(path.join(dir, 'manifest.webmanifest'), '{}');
+  try {
+    await withServer({ distDir: dir }, async ({ http }) => {
+      const lobbies = await fetch(`${http}/api/lobbies`);
+      assert.equal(lobbies.headers.get('cache-control'), 'no-store');
+      const l = await lobbies.json();
+      assert.equal(l.status, 'online');
+      assert.ok(l.rooms.some((r) => r.code === 'PUBLIC'));
+      for (const route of ['/', '/some/route', '/summit?x=1']) {
+        const shell = await fetch(`${http}${route}`);
+        assert.equal(shell.status, 200, route);
+        assert.equal(shell.headers.get('cache-control'), 'no-cache');
+        assert.match(shell.headers.get('content-type'), /text\/html/);
+        assert.match(await shell.text(), /shell/);
+      }
+      const js = await fetch(`${http}/assets/app-abc.js`);
+      assert.equal(js.status, 200);
+      assert.match(js.headers.get('cache-control'), /immutable/);
+      assert.match(js.headers.get('content-type'), /javascript/);
+      assert.equal(js.headers.get('x-content-type-options'), 'nosniff');
+      const manifest = await fetch(`${http}/manifest.webmanifest`);
+      assert.match(manifest.headers.get('content-type'), /manifest\+json/);
+      assert.equal(manifest.headers.get('cache-control'), 'no-cache');
+      for (const missing of [
+        '/assets/missing-123.js',
+        '/favicon.ico',
+        '/icons/x.png',
+        '/assets/',
+      ]) {
+        const r = await fetch(`${http}${missing}`);
+        assert.equal(r.status, 404, missing);
+        assert.doesNotMatch(await r.text(), /shell/);
+      }
+      const sneaky = await fetch(`${http}/assets/..%2findex.html`);
+      assert.equal(
+        sneaky.headers.get('cache-control'),
+        'no-cache',
+        'immutable only for real /assets files',
+      );
+      for (const p of [
+        '/../../../../etc/passwd',
+        '/%2e%2e/%2e%2e/etc/passwd',
+        '/..%2f..%2fetc%2fpasswd',
+      ]) {
+        const r = await rawGet(http, p);
+        assert.ok(!/root:/.test(r.body.toString()), `traversal via ${p}`);
+      }
+      assert.equal((await fetch(`${http}/%E0%A4%A`)).status, 400);
+      assert.equal((await fetch(`${http}/a%00.js`)).status, 400);
+      assert.equal((await fetch(`${http}/`, { method: 'POST' })).status, 405);
+    });
+  } finally {
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+await test('http: gzip for text assets, ETag revalidation (304), HEAD', async () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'orb-dist-'));
+  fs.mkdirSync(path.join(dir, 'assets'));
+  const bigJs = `const data = ${JSON.stringify('orb '.repeat(5000))};\n`;
+  fs.writeFileSync(path.join(dir, 'index.html'), '<html>shell</html>');
+  fs.writeFileSync(path.join(dir, 'assets', 'big-1.js'), bigJs);
+  fs.writeFileSync(path.join(dir, 'assets', 'font-1.woff2'), Buffer.alloc(4096, 7));
+  try {
+    await withServer({ distDir: dir }, async ({ http }) => {
+      const gz = await rawGet(http, '/assets/big-1.js', {
+        headers: { 'Accept-Encoding': 'gzip, br' },
+      });
+      assert.equal(gz.status, 200);
+      assert.equal(gz.headers['content-encoding'], 'gzip');
+      assert.equal(gz.headers.vary, 'Accept-Encoding');
+      assert.equal(zlib.gunzipSync(gz.body).toString(), bigJs);
+      assert.ok(gz.body.length < bigJs.length / 5, 'actually compressed');
+      assert.equal(Number(gz.headers['content-length']), gz.body.length);
+      const again = await rawGet(http, '/assets/big-1.js', {
+        headers: { 'Accept-Encoding': 'gzip' },
+      });
+      assert.deepEqual(again.body, gz.body, 'cached gzip is reused');
+      const plain = await rawGet(http, '/assets/big-1.js');
+      assert.equal(plain.headers['content-encoding'], undefined);
+      assert.equal(plain.body.toString(), bigJs);
+      const font = await rawGet(http, '/assets/font-1.woff2', {
+        headers: { 'Accept-Encoding': 'gzip' },
+      });
+      assert.equal(font.headers['content-encoding'], undefined, 'woff2 is not re-compressed');
+      assert.equal(font.headers['content-type'], 'font/woff2');
+      const shell = await rawGet(http, '/');
+      const etag = shell.headers.etag;
+      assert.ok(etag);
+      const revalidated = await rawGet(http, '/', { headers: { 'If-None-Match': etag } });
+      assert.equal(revalidated.status, 304);
+      assert.equal(revalidated.body.length, 0);
+      const head = await rawGet(http, '/assets/big-1.js', { method: 'HEAD' });
+      assert.equal(head.status, 200);
+      assert.equal(Number(head.headers['content-length']), Buffer.byteLength(bigJs));
+      assert.equal(head.body.length, 0);
+      // A rebuilt file (new mtime/size) is not served from the stale gzip cache.
+      const rebuilt = bigJs.replace('orb', 'ORB') + '// v2\n';
+      fs.writeFileSync(path.join(dir, 'assets', 'big-1.js'), rebuilt);
+      const fresh = await rawGet(http, '/assets/big-1.js', {
+        headers: { 'Accept-Encoding': 'gzip' },
+      });
+      assert.equal(zlib.gunzipSync(fresh.body).toString(), rebuilt);
+    });
+    // No build at all: the plain status text, not a crash.
+    await withServer({ distDir: path.join(dir, 'nope') }, async ({ http }) => {
+      const r = await fetch(`${http}/`);
+      assert.equal(r.status, 200);
+      assert.match(await r.text(), /Summit Multiplayer Server is running/);
+    });
+  } finally {
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
+});
 
 console.log(results.join('\n'));
 console.log(failures ? `\n${failures} FAILED` : `\nALL ${results.length} SERVER TESTS PASSED`);

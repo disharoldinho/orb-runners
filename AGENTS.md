@@ -13,10 +13,10 @@ Welcome! This repository (**Orb Runners**) is co-developed by **Antigravity** an
 
 ### Key Scripts
 - `npm run dev` — Starts the Vite development server on `http://localhost:5173` (automatically proxies `/ws-summit` to `ws://localhost:5174`).
-- `npm run server` — Starts the Summit Multiplayer WebSocket & static HTTP server on port `5174`.
+- `npm run server` — Starts the Summit Multiplayer WebSocket & static HTTP server on port `5174`. With a build in `dist/` it serves the client: hashed `/assets/*` as immutable (1 year), everything else `no-cache` + ETag, gzip for text formats, a real 404 for missing files (anything with an extension or under `/assets/`), and `index.html` only for extension-less SPA routes.
 - `npm run build` — Runs `tsc -b && vite build`. **Always verify `npm run build` exits with code 0 before committing!**
 - `npm run maps:check` — Map visual lint over all campaign maps and the Summit (`scripts/checkMapVisuals.mjs`): z-fighting/coplanar faces, terrain crowding or clipping the road, props in the track or inside each other, clouds through the course, holes in island meshes. Run it after any level, block-visual or scenery change; it must print `OK`.
-- `npm run server:test` — Summit server integration tests (`scripts/testSummitServer.mjs`): boots `createSummitServer()` on a random port and drives it with real WebSocket clients (lobby join/switch/leave, empty-room cleanup, bad passwords, taken codes, host `recreate`, malformed and hostile messages, emote allowlist, heartbeat, rate limits and caps). Run it after any `server/summitServer.mjs` change.
+- `npm run server:test` — Summit server integration tests (`scripts/testSummitServer.mjs`): boots `createSummitServer()` on a random port and drives it with real WebSocket clients (lobby join/switch/leave, empty-room cleanup, bad passwords, taken codes, host `recreate`, malformed and hostile messages, emote allowlist, heartbeat, rate limits and caps, static hosting). Run it after any `server/summitServer.mjs` change.
 - `npm run typecheck` / `npm run lint` — `tsc --noEmit` and ESLint (`eslint.config.js`: typescript-eslint + React hooks rules) over `src/` and `server/`. Lint must report 0 errors (warnings are allowed).
 - `npm run format` / `npm run format:check` — Prettier (`.prettierrc.json`). Not enforced in CI yet; format only the files you touch.
 - CI (`.github/workflows/ci.yml`) runs on every PR and push to `main`: `npm ci`, typecheck, lint, build, `maps:check`, `server:test`, `summit:verify`, and checks that `server/summitWaypoints.json` is up to date.
