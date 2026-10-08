@@ -63,6 +63,9 @@ export interface SummitLobbyState {
   includeBots: boolean;
   isConnected: boolean;
   errorMessage: string | null;
+  /** Set when the requested private code was taken and the server created the room under
+   *  `lobbyCode` instead; the HUD tells the host to share the new code. */
+  renamedFrom?: string | null;
 }
 
 export interface TiltInput {

@@ -43,6 +43,29 @@ const MEDAL_LABEL: Record<string, string> = {
   none: 'Finished',
 };
 
+const dismissRenameNotice = () =>
+  useGameStore.getState().setSummitLobbyState({ renamedFrom: null });
+
+/** Shown to a host whose requested private code was taken: the room got another code. */
+function LobbyRenameNotice({ requested, actual }: { requested: string; actual: string }) {
+  useEffect(() => {
+    const t = window.setTimeout(dismissRenameNotice, 12000);
+    return () => window.clearTimeout(t);
+  }, [requested, actual]);
+  return (
+    <div className="hud-notice" role="status" data-testid="lobby-rename-notice">
+      <Icon name="alert" size={18} />
+      <span>
+        Code <s>{requested}</s> was already taken, so your lobby is <b>{actual}</b>. Share{' '}
+        <b>{actual}</b> with your friends.
+      </span>
+      <button className="mini-btn" onClick={dismissRenameNotice} aria-label="Dismiss">
+        <Icon name="close" size={13} />
+      </button>
+    </div>
+  );
+}
+
 export function HUD() {
   const currentLevelId = useGameStore((s) => s.currentLevelId);
   const playPhase = useGameStore((s) => s.playPhase);
@@ -484,6 +507,10 @@ export function HUD() {
             )}
           </div>
         </div>
+      )}
+
+      {isSummit && summitLobby.isConnected && summitLobby.renamedFrom && (
+        <LobbyRenameNotice requested={summitLobby.renamedFrom} actual={summitLobby.lobbyCode} />
       )}
 
       {checkpointWarningMessage && playPhase === 'playing' && (
