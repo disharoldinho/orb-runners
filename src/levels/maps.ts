@@ -664,11 +664,12 @@ export const MAPS: LevelData[] = [
     // the next chicane, so you commit to a side on the way down. The last flat is a braking
     // straight to a 7 m gap crossed on a sideways ferry, then the gold finish.
     goalPosition: [0, -16.062, -140],
+    // Author: autopilot (scripts/autopilot, route 7), all 3 gems, 27.900 s -> 27.9 s.
     medalTimesMs: {
-      author: 9200,
-      gold: 11500,
-      silver: 17500,
-      bronze: 30000,
+      author: 27900,
+      gold: 35500,
+      silver: 53000,
+      bronze: 89500,
     },
     checkpoints: [
       { id: 'm7-cp1', order: 1, position: [0, -3.673, -32.6], width: 6.2 },
