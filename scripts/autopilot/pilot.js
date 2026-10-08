@@ -41,8 +41,30 @@ window.__startPilot = async (stageId, route, opts = {}) => {
     return d.angularVelocity[1] * t;
   };
   const wrap = (a) => Math.atan2(Math.sin(a), Math.cos(a));
-  const holdOk = (h, t) => {
+  /** Time to cover d metres starting at v0, accelerating (rolling, ~full tilt) up to vcap. */
+  const travelTime = (d, v0, vcap) => {
+    const A = 0.9 * A_ROLL;
+    if (v0 >= vcap) return d / vcap;
+    const da = (vcap * vcap - v0 * v0) / (2 * A);
+    if (d <= da) return (-v0 + Math.sqrt(v0 * v0 + 2 * A * d)) / A;
+    return (vcap - v0) / A + (d - da) / vcap;
+  };
+  // v0: speed when leaving the hold point; vcap: this profile's speed on the next segment
+  const holdOk = (h, t, v0 = 0, vcap = 6) => {
     if (!h) return true;
+    if (h.type === 'align') {
+      // Spinning bridge: after travelling h.dist metres from the hold point (at this pilot's
+      // pace), an arm must be within [lo, hi] rad of lining up with the route. Signed in the
+      // direction of rotation: negative = still swinging into line.
+      const d = byId('rotatingHazards', h.id);
+      const w = d.angularVelocity[1];
+      const mod = h.mod ?? Math.PI / 2;
+      let a = (w * (t + travelTime(h.dist, v0, vcap))) % mod;
+      if (a < 0) a += mod;
+      let rel = a > mod / 2 ? a - mod : a; // nearest alignment, signed by yaw
+      if (w < 0) rel = -rel;
+      return rel >= h.window[0] && rel <= h.window[1];
+    }
     if (h.type === 'time') return t >= h.t;
     if (h.type === 'platform') {
       // platform centre (at t + lead) within [min, max] on axis
@@ -289,8 +311,10 @@ window.__startPilot = async (stageId, route, opts = {}) => {
     if (nh) {
       const h = pts[nh.j].hold;
       const v = Math.hypot(livePhysics.ballVelocity[0], livePhysics.ballVelocity[2]);
-      if (nh.d < (h.radius ?? 1.2) && holdOk(h, t)) released.add(nh.j);
-      else if (v > 1 && nh.d < (h.predict ?? 5) && holdOk(h, t + nh.d / v)) released.add(nh.j);
+      const vcap = (pts[nh.j].v ?? 8) * speedScale;
+      if (nh.d < (h.radius ?? 1.2) && holdOk(h, t, v, vcap)) released.add(nh.j);
+      else if (v > 1 && nh.d < (h.predict ?? 5) && holdOk(h, t + nh.d / v, v, vcap))
+        released.add(nh.j);
     }
     const la = pointAlong(pr.seg, pr.u, lookahead);
     let dx = la.x - x;
