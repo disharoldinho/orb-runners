@@ -131,7 +131,9 @@ window.__startPilot = async (stageId, route, opts = {}) => {
     let cur = projOn(from, x, z);
     while (cur.seg + 1 < end) {
       const next = projOn(cur.seg + 1, x, z);
-      if (cur.u >= 0.999 || next.dist < cur.dist - 0.6) cur = next;
+      const tip = pts[cur.seg + 1].p;
+      const reached = Math.hypot(x - tip[0], z - tip[2]) < 0.6;
+      if (cur.u >= 0.999 || reached || next.dist < cur.dist - 0.6) cur = next;
       else break;
     }
     return cur;
@@ -208,6 +210,20 @@ window.__startPilot = async (stageId, route, opts = {}) => {
         runClockMs: Math.round(st.runClockMs),
         gems: st.collectedGems.length,
         totalGems: (level.gems || []).length,
+        saved: (() => {
+          // what finishRun persisted (records the stage's layout version)
+          try {
+            const pr = JSON.parse(localStorage.getItem('orb_runners_progress_v1') || '{}')[stageId];
+            const gh = JSON.parse(localStorage.getItem('orb_runners_ghosts_v1') || '{}')[stageId];
+            return {
+              layoutVersion: pr?.layoutVersion,
+              medal: pr?.medal,
+              ghostLayoutVersion: gh?.layoutVersion,
+            };
+          } catch {
+            return null;
+          }
+        })(),
         missedGems: (level.gems || [])
           .map((g) => g.id)
           .filter((id) => !st.collectedGems.includes(id)),

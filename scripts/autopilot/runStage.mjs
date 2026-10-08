@@ -124,6 +124,7 @@ for (const stageId of stages) {
           checkpoints: r.checkpoints,
           missedGems: r.missedGems?.length ? r.missedGems : undefined,
           bumps: r.bumps,
+          saved: r.saved ?? undefined,
           falls: r.falls,
           simS: r.simS,
           reason: r.reason,

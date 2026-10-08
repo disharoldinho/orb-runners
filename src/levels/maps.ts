@@ -201,11 +201,13 @@ export const MAPS: LevelData[] = [
     // bumper gate -> a narrow chicane gauntlet that forces a weave -> gold finish. Side gems
     // sit on the tight side of a bumper: taking one means threading the gap.
     goalPosition: [0, 0.3, -133],
+    // Author: autopilot (scripts/autopilot, route 3, pace x1.15), all 4 gems, no bumper
+    // contact, 26.883 s -> 26.9 s.
     medalTimesMs: {
-      author: 8200,
-      gold: 10500,
-      silver: 15500,
-      bronze: 25000,
+      author: 26900,
+      gold: 34500,
+      silver: 51000,
+      bronze: 86000,
     },
     checkpoints: [
       { id: 'm3-cp1', order: 1, position: [0, 0.3, -50] },
@@ -306,11 +308,12 @@ export const MAPS: LevelData[] = [
     // Arms stop 0.37 m short of the decks, so nothing ever clips through a deck, and every
     // deck end closes down to the 3.6 m arm width with caps.
     goalPosition: [0, 0.3, -86.5],
+    // Author: autopilot (scripts/autopilot, route 4), all 4 gems, 34.633 s -> 34.7 s.
     medalTimesMs: {
-      author: 10200,
-      gold: 13000,
-      silver: 19000,
-      bronze: 32000,
+      author: 34700,
+      gold: 44500,
+      silver: 66000,
+      bronze: 111000,
     },
     checkpoints: [
       { id: 'm4-cp1', order: 1, position: [0, 0.3, -25] },
