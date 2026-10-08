@@ -221,11 +221,135 @@ const MIME_TYPES = {
   '.woff2': 'font/woff2',
 };
 
+const cleanPassword = (v) =>
+  typeof v === 'string' || typeof v === 'number' ? String(v).trim().slice(0, 64) : '';
 const cleanCode = (v) =>
   String(v ?? '')
     .toUpperCase()
     .replace(/[^A-Z0-9-]/g, '')
     .slice(0, 10);
+
+// ---------------------------------------------------------------------------------------------
+// Input validation and limits. Everything a client sends is rebuilt from these sanitisers;
+// no client field is ever relayed as-is.
+// ---------------------------------------------------------------------------------------------
+
+/** Largest accepted WebSocket message; ws closes the socket (1009) on anything bigger. */
+const MAX_MESSAGE_BYTES = 16 * 1024;
+/** Ping interval; a socket that misses one pong is terminated on the next tick. */
+const HEARTBEAT_MS = 15000;
+/** |x|, |y|, |z| clamp for positions (the Summit fits well inside this). */
+const COORD_LIMIT = 5000;
+/** Skip a socket's room-state while it has this much unsent data (slow / stuck client). */
+const MAX_BUFFERED_BYTES = 1 << 20;
+
+/**
+ * Tunable limits (createSummitServer({ limits }) overrides them, e.g. in tests).
+ * The browser client sends one join per socket and 20 state-updates per second.
+ */
+export const DEFAULT_LIMITS = Object.freeze({
+  /** Token bucket for all messages of one socket: sustained rate and burst. */
+  msgPerSec: 40,
+  msgBurst: 80,
+  /** Messages over budget are dropped; this many dropped in a row closes the socket (1008). */
+  maxDroppedMsgs: 200,
+  /** Separate bucket for join-or-create (room creation / password guessing). */
+  joinPerSec: 1,
+  joinBurst: 8,
+  maxConnections: 2000,
+  maxPrivateRooms: 500,
+  maxPrivateRoomClients: 16,
+  maxPublicClients: 64,
+});
+
+/** Strips control characters (C0, DEL, C1) and bidi overrides, trims, caps by code points. */
+const cleanText = (v, max, fallback = '') => {
+  if (typeof v !== 'string' && typeof v !== 'number') return fallback;
+  const text = Array.from(
+    String(v)
+      .replace(/[\p{Cc}\u202A-\u202E\u2066-\u2069]/gu, '')
+      .trim(),
+  )
+    .slice(0, max)
+    .join('')
+    .trim();
+  return text || fallback;
+};
+const finite = (v, fallback, lim = COORD_LIMIT) =>
+  typeof v === 'number' && Number.isFinite(v) ? Math.max(-lim, Math.min(lim, v)) : fallback;
+/** Yaw wrapped to [-π, π] (the client's camera yaw grows without bound; clients slerp). */
+const cleanYaw = (v, fallback) =>
+  typeof v === 'number' && Number.isFinite(v)
+    ? Math.round(Math.atan2(Math.sin(v), Math.cos(v)) * 1000) / 1000
+    : fallback;
+const cleanPosition = (v, fallback) =>
+  Array.isArray(v) && v.length === 3 && v.every((n) => typeof n === 'number' && Number.isFinite(n))
+    ? v.map((n) => Math.round(Math.max(-COORD_LIMIT, Math.min(COORD_LIMIT, n)) * 100) / 100)
+    : fallback;
+
+/**
+ * Emote allowlist: the legacy emoji payloads current clients send (wave / fire / whoa /
+ * crown) plus the sticker ids used by the polish-pass client. Anything else is dropped.
+ */
+const EMOTE_IDS = new Set([
+  'wave',
+  'fire',
+  'whoa',
+  'crown',
+  'laugh',
+  'thumbs',
+  'heart',
+  'gg',
+  '👋',
+  '🔥',
+  '😱',
+  '👑',
+]);
+const cleanEmote = (v) => (typeof v === 'string' && EMOTE_IDS.has(v) ? v : null);
+
+/** Server-side copy of the client's default avatar; every relayed avatar is complete. */
+const DEFAULT_AVATAR = Object.freeze({
+  name: 'Pip',
+  bodyType: 'critter',
+  eyeType: 'googly',
+  mouthType: 'cat',
+  hatType: 'propeller',
+  primaryColor: '#FF9F1C',
+  secondaryColor: '#FFF5E1',
+  orbStyle: 'clear',
+});
+const AVATAR_ID_KEYS = ['bodyType', 'eyeType', 'mouthType', 'hatType', 'orbStyle'];
+const AVATAR_COLOR_KEYS = ['primaryColor', 'secondaryColor'];
+const ID_RE = /^[A-Za-z0-9_-]{1,32}$/;
+const COLOR_RE = /^#(?:[0-9a-fA-F]{3}){1,2}$/;
+/** Rebuilds an avatar from known keys only (ids, hex colours, a short name). */
+const cleanAvatar = (v, fallback = DEFAULT_AVATAR) => {
+  if (!v || typeof v !== 'object' || Array.isArray(v)) return fallback;
+  const base = fallback || DEFAULT_AVATAR;
+  const out = { name: cleanText(v.name, 32, base.name) };
+  for (const k of AVATAR_ID_KEYS)
+    out[k] = typeof v[k] === 'string' && ID_RE.test(v[k]) ? v[k] : base[k];
+  for (const k of AVATAR_COLOR_KEYS) {
+    out[k] = typeof v[k] === 'string' && COLOR_RE.test(v[k]) ? v[k] : base[k];
+  }
+  return out;
+};
+
+/** Token bucket: `take()` is false when the caller is over its rate. */
+function tokenBucket(perSec, burst) {
+  let tokens = burst;
+  let last = Date.now();
+  return {
+    take() {
+      const now = Date.now();
+      tokens = Math.min(burst, tokens + ((now - last) / 1000) * perSec);
+      last = now;
+      if (tokens < 1) return false;
+      tokens -= 1;
+      return true;
+    },
+  };
+}
 
 /**
  * Creates the Summit HTTP + WebSocket server (not listening yet), so tests can run it on an
@@ -240,9 +364,17 @@ const cleanCode = (v) =>
  *  - creating a taken code gets a fresh random code (never someone else's room);
  *  - PUBLIC always exists.
  */
-export function createSummitServer({ distDir = DIST_DIR, tickMs = 50, log = console } = {}) {
+export function createSummitServer({
+  distDir = DIST_DIR,
+  tickMs = 50,
+  heartbeatMs = HEARTBEAT_MS,
+  limits: limitOverrides = {},
+  log = console,
+} = {}) {
+  const limits = { ...DEFAULT_LIMITS, ...limitOverrides };
   /** Active rooms by lobby code ('PUBLIC' or a private code). */
   const rooms = new Map();
+  let privateRoomCount = 0;
 
   function createRoom({ code, name, password = '', isPublic = false, includeBots = true }) {
     const room = {
@@ -255,6 +387,7 @@ export function createSummitServer({ distDir = DIST_DIR, tickMs = 50, log = cons
       createdAt: Date.now(),
     };
     rooms.set(code, room);
+    if (!isPublic) privateRoomCount++;
     return room;
   }
 
@@ -271,6 +404,7 @@ export function createSummitServer({ distDir = DIST_DIR, tickMs = 50, log = cons
     room.clients.delete(ws);
     if (!room.isPublic && room.clients.size === 0 && code !== keepCode) {
       rooms.delete(code);
+      privateRoomCount--;
     }
   }
 
@@ -313,11 +447,22 @@ export function createSummitServer({ distDir = DIST_DIR, tickMs = 50, log = cons
     res.end('Orb Runners Summit Multiplayer Server is running.');
   });
 
-  const wss = new WebSocketServer({ server: httpServer });
+  const wss = new WebSocketServer({ server: httpServer, maxPayload: MAX_MESSAGE_BYTES });
 
   wss.on('connection', (ws) => {
+    if (wss.clients.size > limits.maxConnections) {
+      ws.close(1013, 'Server full');
+      return;
+    }
     let currentRoomCode = null;
     const clientId = `climber-${Math.random().toString(36).slice(2, 9)}`;
+    const msgBucket = tokenBucket(limits.msgPerSec, limits.msgBurst);
+    const joinBucket = tokenBucket(limits.joinPerSec, limits.joinBurst);
+    let droppedInARow = 0;
+    ws.isAlive = true;
+    ws.on('pong', () => {
+      ws.isAlive = true;
+    });
 
     const send = (obj) => {
       if (ws.readyState === 1) ws.send(JSON.stringify(obj));
@@ -336,6 +481,12 @@ export function createSummitServer({ distDir = DIST_DIR, tickMs = 50, log = cons
     };
 
     ws.on('message', (raw) => {
+      if (!msgBucket.take()) {
+        droppedInARow++;
+        if (droppedInARow >= limits.maxDroppedMsgs) ws.close(1008, 'Rate limit exceeded');
+        return;
+      }
+      droppedInARow = 0;
       let msg;
       try {
         msg = JSON.parse(String(raw));
@@ -353,12 +504,25 @@ export function createSummitServer({ distDir = DIST_DIR, tickMs = 50, log = cons
 
     function handleMessage(msg) {
       if (msg.type === 'join-or-create') {
+        if (!joinBucket.take()) {
+          // Not a failed switch: the climber stays where it is.
+          send({
+            type: 'lobby-error',
+            message: 'Too many lobby requests. Wait a moment and try again.',
+            code: 'rate-limited',
+          });
+          return;
+        }
         const mode = msg.mode === 'create' || msg.mode === 'join' ? msg.mode : 'public';
         let targetRoom;
 
         if (mode === 'public') {
           targetRoom = rooms.get('PUBLIC');
         } else if (mode === 'create') {
+          if (privateRoomCount >= limits.maxPrivateRooms) {
+            lobbyError('The server is full right now. Try again in a few minutes.', 'server-full');
+            return;
+          }
           let code = cleanCode(msg.lobbyCode);
           if (!code || code === 'PUBLIC' || rooms.has(code)) {
             do {
@@ -367,8 +531,8 @@ export function createSummitServer({ distDir = DIST_DIR, tickMs = 50, log = cons
           }
           targetRoom = createRoom({
             code,
-            name: String(msg.lobbyName || `Private Climb ${code}`).slice(0, 32),
-            password: String(msg.password || ''),
+            name: cleanText(msg.lobbyName, 32, `Private Climb ${code}`),
+            password: cleanPassword(msg.password),
             isPublic: false,
             includeBots: msg.includeBots !== false,
           });
@@ -377,7 +541,13 @@ export function createSummitServer({ distDir = DIST_DIR, tickMs = 50, log = cons
           let candidate = rooms.get(code);
           // Reconnecting host whose room emptied while it was offline (polish-pass client):
           // recreate it under the same code, only when the code is free and valid.
-          if (!candidate && msg.recreate && code && code !== 'PUBLIC') {
+          if (
+            !candidate &&
+            msg.recreate === true &&
+            code &&
+            code !== 'PUBLIC' &&
+            privateRoomCount < limits.maxPrivateRooms
+          ) {
             candidate = createRoom({
               code,
               name: String(msg.lobbyName || `Private Climb ${code}`).slice(0, 32),
@@ -393,7 +563,7 @@ export function createSummitServer({ distDir = DIST_DIR, tickMs = 50, log = cons
             );
             return;
           }
-          const suppliedPass = String(msg.password || '').trim();
+          const suppliedPass = cleanPassword(msg.password);
           if (candidate.password && candidate.password !== suppliedPass) {
             lobbyError(
               'Incorrect Lobby Password! Please check the password and try again.',
@@ -404,17 +574,26 @@ export function createSummitServer({ distDir = DIST_DIR, tickMs = 50, log = cons
           targetRoom = candidate;
         }
 
+        const cap = targetRoom.isPublic ? limits.maxPublicClients : limits.maxPrivateRoomClients;
+        if (!targetRoom.clients.has(ws) && targetRoom.clients.size >= cap) {
+          lobbyError(`Lobby "${targetRoom.code}" is full.`, 'room-full');
+          return;
+        }
+
         leaveCurrent(targetRoom.code);
         currentRoomCode = targetRoom.code;
-        const initialClimber = msg.climber && typeof msg.climber === 'object' ? msg.climber : {};
+        const initialClimber =
+          msg.climber && typeof msg.climber === 'object' && !Array.isArray(msg.climber)
+            ? msg.climber
+            : {};
         targetRoom.clients.set(ws, {
           id: clientId,
-          name: String(initialClimber.name || 'Climber').slice(0, 18),
-          position: initialClimber.position || [0, 1.0, 0],
-          yaw: initialClimber.yaw || 0,
-          altitudeM: initialClimber.altitudeM || 0,
-          peakAltitudeM: initialClimber.peakAltitudeM || 0,
-          avatar: initialClimber.avatar,
+          name: cleanText(initialClimber.name, 18, 'Climber'),
+          position: cleanPosition(initialClimber.position, [0, 1.0, 0]),
+          yaw: cleanYaw(initialClimber.yaw, 0),
+          altitudeM: finite(initialClimber.altitudeM, 0),
+          peakAltitudeM: finite(initialClimber.peakAltitudeM, 0),
+          avatar: cleanAvatar(initialClimber.avatar),
           emote: null,
           isBot: false,
         });
@@ -435,15 +614,15 @@ export function createSummitServer({ distDir = DIST_DIR, tickMs = 50, log = cons
         const existing = room?.clients.get(ws);
         if (!existing) return;
         room.clients.set(ws, {
-          ...existing,
-          name: String(msg.name || existing.name).slice(0, 18),
-          position: Array.isArray(msg.position) ? msg.position : existing.position,
-          yaw: typeof msg.yaw === 'number' ? msg.yaw : existing.yaw,
-          altitudeM: typeof msg.altitudeM === 'number' ? msg.altitudeM : existing.altitudeM,
-          peakAltitudeM:
-            typeof msg.peakAltitudeM === 'number' ? msg.peakAltitudeM : existing.peakAltitudeM,
-          avatar: msg.avatar || existing.avatar,
-          emote: msg.emote || null,
+          id: existing.id,
+          name: cleanText(msg.name, 18, existing.name),
+          position: cleanPosition(msg.position, existing.position),
+          yaw: cleanYaw(msg.yaw, existing.yaw),
+          altitudeM: finite(msg.altitudeM, existing.altitudeM),
+          peakAltitudeM: finite(msg.peakAltitudeM, existing.peakAltitudeM),
+          avatar:
+            msg.avatar === undefined ? existing.avatar : cleanAvatar(msg.avatar, existing.avatar),
+          emote: cleanEmote(msg.emote),
           isBot: false,
         });
       }
@@ -480,14 +659,34 @@ export function createSummitServer({ distDir = DIST_DIR, tickMs = 50, log = cons
         climbers: allClimbers,
       });
       for (const clientWs of room.clients.keys()) {
-        if (clientWs.readyState === 1) clientWs.send(payload);
+        if (clientWs.readyState === 1 && clientWs.bufferedAmount < MAX_BUFFERED_BYTES) {
+          clientWs.send(payload);
+        }
       }
     }
   }, tickMs);
 
+  // Heartbeat: frozen tabs, sleeping phones and dropped NATs never send 'close'; without
+  // this their climber (and an otherwise empty private room) would linger forever.
+  const heartbeat = setInterval(() => {
+    for (const ws of wss.clients) {
+      if (!ws.isAlive) {
+        ws.terminate(); // 'close' runs the usual room cleanup
+        continue;
+      }
+      ws.isAlive = false;
+      try {
+        ws.ping();
+      } catch {
+        // socket already closing
+      }
+    }
+  }, heartbeatMs);
+
   /** Stops the loops, drops every socket and closes the HTTP server. */
   function close() {
     clearInterval(broadcast);
+    clearInterval(heartbeat);
     for (const ws of wss.clients) ws.terminate();
     wss.close();
     return new Promise((resolve) => httpServer.close(() => resolve()));

@@ -279,6 +279,243 @@ await test('malformed messages are ignored and never crash the server', () =>
     await a.close();
   }));
 
+await test('malformed, hostile and oversized messages are sanitised or ignored', () =>
+  withServer({}, async ({ server, url }) => {
+    const a = client(url);
+    await a.open;
+    a.send('not json');
+    a.send('null');
+    a.send('42');
+    const j = await a.join({
+      mode: 'public',
+      climber: { name: '\u0000'.repeat(3) + 'x'.repeat(50), position: 'bad' },
+    });
+    a.send({
+      type: 'state-update',
+      name: '',
+      position: [NaN, 1e12, 'x'],
+      yaw: 'y',
+      altitudeM: Infinity,
+      emote: '👋'.repeat(100),
+      avatar: { name: 'n'.repeat(200), primaryColor: '#fff', evil: { deep: 1 } },
+    });
+    await settle();
+    const me = server.rooms
+      .get('PUBLIC')
+      .clients.get([...server.rooms.get('PUBLIC').clients.keys()][0]);
+    assert.equal(me.id, j.clientId);
+    assert.equal(me.name.length, 18);
+    assert.deepEqual(me.position, [0, 1, 0]);
+    assert.ok(Number.isFinite(me.altitudeM));
+    assert.equal(me.emote, null, 'unknown emote text must be dropped');
+    assert.equal(me.avatar.name.length, 32);
+    assert.equal(me.avatar.evil, undefined);
+    assert.equal(me.avatar.primaryColor, '#fff');
+    assert.equal(me.avatar.bodyType, 'critter', 'missing avatar keys get defaults');
+    // Oversized payload: the socket is dropped, the server keeps running and cleans up.
+    const big = client(url);
+    await big.open;
+    await big.join({ mode: 'create', lobbyCode: 'BIG1' });
+    const closed = new Promise((r) => big.ws.once('close', r));
+    big.send({ type: 'state-update', name: 'x'.repeat(40000) });
+    await closed;
+    await settle();
+    assert.ok(!server.rooms.has('BIG1'));
+    const again = await a.join({ mode: 'public' });
+    assert.equal(again.type, 'lobby-joined');
+    await a.close();
+  }));
+
+await test('emotes: sticker ids and legacy emoji pass, anything else is dropped', () =>
+  withServer({}, async ({ server, url }) => {
+    const a = client(url);
+    await a.open;
+    await a.join({ mode: 'create', lobbyCode: 'EMO1', includeBots: false });
+    const me = () => [...server.rooms.get('EMO1').clients.values()][0];
+    for (const [sent, want] of [
+      ['laugh', 'laugh'],
+      ['gg', 'gg'],
+      ['👋', '👋'],
+      ['👑', '👑'],
+      ['<script>', null],
+      ['hello', null],
+      [42, null],
+    ]) {
+      a.send({ type: 'state-update', emote: sent });
+      await settle(40);
+      assert.equal(me().emote, want, `emote ${sent}`);
+    }
+    await a.close();
+  }));
+
+await test('dead sockets (no pong) are terminated by the heartbeat and removed', () =>
+  withServer({ heartbeatMs: 60 }, async ({ server, url }) => {
+    const a = client(url);
+    await a.open;
+    await a.join({ mode: 'create', lobbyCode: 'ZOMBIE' });
+    // Simulate a frozen phone: stop answering pings.
+    a.ws.pong = () => {};
+    a.ws._receiver.removeAllListeners('ping');
+    a.ws._receiver.on('ping', () => {});
+    const closed = new Promise((r) => a.ws.once('close', r));
+    await closed;
+    await settle();
+    assert.ok(!server.rooms.has('ZOMBIE'));
+  }));
+
+await test('relayed climbers carry only validated fields (no spoofing, clamping, yaw wrap)', () =>
+  withServer({}, async ({ url }) => {
+    const a = client(url);
+    const b = client(url);
+    await Promise.all([a.open, b.open]);
+    const ja = await a.join({
+      mode: 'create',
+      lobbyCode: 'VAL1',
+      lobbyName: 'Room\u0000\u202e\u0007 name that is way too long for the lobby list',
+      includeBots: false,
+      climber: [1, 2, 3],
+    });
+    assert.equal(ja.lobbyName, 'Room name that is way too long f');
+    await b.join({ mode: 'join', lobbyCode: 'VAL1' });
+    a.send({
+      type: 'state-update',
+      id: 'spoofed-id',
+      isBot: true,
+      extra: { huge: 'x'.repeat(1000) },
+      position: [1e9, -1e9, 1.23456],
+      yaw: 7 * Math.PI,
+      altitudeM: 1e9,
+      avatar: {
+        bodyType: '<img src=x>',
+        primaryColor: 'red; background:url(x)',
+        secondaryColor: '#123456',
+      },
+      emote: 'gg',
+    });
+    await settle();
+    b.clearInbox();
+    const st = await b.roomState('VAL1');
+    const me = st.climbers.find((c) => c.id === ja.clientId);
+    assert.ok(me, 'id cannot be spoofed');
+    assert.deepEqual(Object.keys(me).sort(), [
+      'altitudeM',
+      'avatar',
+      'emote',
+      'id',
+      'isBot',
+      'name',
+      'peakAltitudeM',
+      'position',
+      'yaw',
+    ]);
+    assert.equal(me.isBot, false);
+    assert.deepEqual(me.position, [5000, -5000, 1.23]);
+    assert.ok(Math.abs(Math.abs(me.yaw) - Math.PI) < 0.01, `yaw wrapped, got ${me.yaw}`);
+    assert.equal(me.altitudeM, 5000);
+    assert.equal(me.avatar.bodyType, 'critter');
+    assert.equal(me.avatar.primaryColor, '#FF9F1C');
+    assert.equal(me.avatar.secondaryColor, '#123456');
+    assert.equal(me.emote, 'gg');
+    assert.equal(me.name, 'Climber', 'array climber payload ignored');
+    await Promise.all([a.close(), b.close()]);
+  }));
+
+await test('rate limit: messages over budget are dropped, a flood closes the socket (1008)', () =>
+  withServer(
+    { limits: { msgPerSec: 20, msgBurst: 5, maxDroppedMsgs: 1000 } },
+    async ({ server, url }) => {
+      const a = client(url);
+      await a.open;
+      await a.join({ mode: 'create', lobbyCode: 'RATE1', includeBots: false });
+      for (let i = 1; i <= 50; i++) a.send({ type: 'state-update', altitudeM: i });
+      await settle(150);
+      const me = [...server.rooms.get('RATE1').clients.values()][0];
+      assert.ok(
+        me.altitudeM >= 4 && me.altitudeM <= 10,
+        `only the burst is applied, got ${me.altitudeM}`,
+      );
+      assert.equal(a.ws.readyState, WebSocket.OPEN, 'dropping is not disconnecting');
+      // Back under the rate: updates apply again.
+      await settle(300);
+      a.send({ type: 'state-update', altitudeM: 99 });
+      await settle();
+      assert.equal([...server.rooms.get('RATE1').clients.values()][0].altitudeM, 99);
+      await a.close();
+    },
+  ).then(() =>
+    withServer({}, async ({ server, url }) => {
+      // Default limits: a 20 Hz client never trips them, a flood gets the socket closed.
+      const ok = client(url);
+      await ok.open;
+      await ok.join({ mode: 'create', lobbyCode: 'RATE2', includeBots: false });
+      for (let i = 0; i < 30; i++) {
+        ok.send({ type: 'state-update', altitudeM: i });
+        await settle(50);
+      }
+      assert.equal([...server.rooms.get('RATE2').clients.values()][0].altitudeM, 29);
+      const flood = client(url);
+      await flood.open;
+      await flood.join({ mode: 'create', lobbyCode: 'FLOOD', includeBots: false });
+      const closed = new Promise((r) => flood.ws.once('close', (code) => r(code)));
+      for (let i = 0; i < 400; i++) flood.send({ type: 'state-update', altitudeM: i });
+      assert.equal(await closed, 1008);
+      await settle();
+      assert.ok(!server.rooms.has('FLOOD'), 'flooder cleaned up');
+      assert.ok(server.rooms.has('RATE2'), 'other rooms unaffected');
+      await ok.close();
+    }),
+  ));
+
+await test('join rate limit: rapid join-or-create spam is refused without moving the climber', () =>
+  withServer({}, async ({ server, url }) => {
+    const a = client(url);
+    await a.open;
+    await a.join({ mode: 'create', lobbyCode: 'HOME' });
+    for (let i = 0; i < 7; i++) await a.join({ mode: 'join', lobbyCode: 'HOME' });
+    const r = await a.join({ mode: 'create', lobbyCode: 'SPAM' });
+    assert.equal(r.type, 'lobby-error');
+    assert.equal(r.code, 'rate-limited');
+    assert.ok(!server.rooms.has('SPAM'));
+    assert.equal(server.rooms.get('HOME').clients.size, 1, 'still in its room');
+    await a.close();
+  }));
+
+await test('caps: private room count, room size, PUBLIC size, total connections', () =>
+  withServer(
+    {
+      limits: {
+        maxPrivateRooms: 2,
+        maxPrivateRoomClients: 2,
+        maxPublicClients: 1,
+        maxConnections: 5,
+      },
+    },
+    async ({ server, url }) => {
+      const [a, b, c, d, e] = Array.from({ length: 5 }, () => client(url));
+      await Promise.all([a, b, c, d, e].map((x) => x.open));
+      assert.equal((await a.join({ mode: 'create', lobbyCode: 'CAP1' })).type, 'lobby-joined');
+      assert.equal((await b.join({ mode: 'create', lobbyCode: 'CAP2' })).type, 'lobby-joined');
+      const full = await c.join({ mode: 'create', lobbyCode: 'CAP3' });
+      assert.equal(full.code, 'server-full');
+      assert.ok(!server.rooms.has('CAP3'));
+      const rec = await c.join({ mode: 'join', lobbyCode: 'CAP3', recreate: true });
+      assert.equal(rec.code, 'not-found', 'recreate respects the room cap too');
+      assert.equal((await c.join({ mode: 'join', lobbyCode: 'CAP1' })).type, 'lobby-joined');
+      const roomFull = await d.join({ mode: 'join', lobbyCode: 'CAP1' });
+      assert.equal(roomFull.code, 'room-full');
+      assert.equal((await d.join({ mode: 'public' })).type, 'lobby-joined');
+      assert.equal((await e.join({ mode: 'public' })).code, 'room-full');
+      const sixth = client(url);
+      const code = await new Promise((r) => sixth.ws.once('close', (c2) => r(c2)));
+      assert.equal(code, 1013);
+      // Freed slots are reusable: leaving CAP2 deletes it and lets a new room be created.
+      b.send({ type: 'leave' });
+      await settle();
+      assert.equal((await e.join({ mode: 'create', lobbyCode: 'CAP3' })).type, 'lobby-joined');
+      await Promise.all([a, b, c, d, e].map((x) => x.close()));
+    },
+  ));
+
 console.log(results.join('\n'));
 console.log(failures ? `\n${failures} FAILED` : `\nALL ${results.length} SERVER TESTS PASSED`);
 process.exit(failures ? 1 : 0);
